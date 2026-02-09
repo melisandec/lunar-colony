@@ -1,21 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processProductionCycle } from "@/lib/production-engine";
+import { runMarketTick } from "@/lib/market-engine";
 import { GAME_CONSTANTS } from "@/lib/utils";
 
 /**
  * POST /api/cron
- * Protected daily production cycle endpoint.
+ * Protected daily production + market tick endpoint.
  *
- * Runs the full batch production calculator for all active players:
- *   - Cursor-based batching (100 players/batch)
- *   - Per-player 5 s timeout
- *   - Idempotent via ProductionLog @@unique([playerId, date, resource])
- *   - Structured logging via GameEvent
+ * Runs two jobs:
+ *   1. Production cycle — batch credits for all active players
+ *   2. Market tick — updates resource prices, records history, creates alerts
+ *
+ * Both are idempotent and safe to re-run.
  *
  * Protected by CRON_SECRET in middleware.ts.
  *
  * Vercel cron config (vercel.json):
- * "crons": [{ "path": "/api/cron", "schedule": "0 0 * * *" }]
+ * schedule: every 15 minutes
  */
 export async function POST(_req: NextRequest) {
   const startTime = Date.now();
@@ -27,17 +28,22 @@ export async function POST(_req: NextRequest) {
     // Vercel serverless max is 60 s; stop processing at 50 s to allow cleanup
     const safetyTimeout = setTimeout(() => controller.abort(), 50_000);
 
-    const result = await processProductionCycle({
-      batchSize: 100,
-      playerTimeoutMs: 5_000,
-      signal: controller.signal,
-    });
+    // Run production cycle + market tick in parallel
+    const [productionResult, marketResult] = await Promise.all([
+      processProductionCycle({
+        batchSize: 100,
+        playerTimeoutMs: 5_000,
+        signal: controller.signal,
+      }),
+      runMarketTick(),
+    ]);
 
     clearTimeout(safetyTimeout);
 
     return NextResponse.json({
       success: true,
-      ...result,
+      production: productionResult,
+      market: marketResult,
       aborted: controller.signal.aborted,
     });
   } catch (error) {

@@ -18,6 +18,7 @@ import {
   type Screen,
 } from "@/lib/frame-response";
 import { type ModuleType } from "@/lib/utils";
+import marketEngine, { type TradeResult } from "@/lib/market-engine";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -60,6 +61,11 @@ export class GameState {
       username: raw.username ?? `player_${raw.fid}`,
       state,
     });
+  }
+
+  /** Get the player's database ID (for external use like trade endpoint). */
+  getPlayerId(): string {
+    return this.player.id;
   }
 
   // -----------------------------------------------------------------------
@@ -141,13 +147,13 @@ export class GameState {
     return this.executeBuild(moduleType);
   }
 
-  /** MARKET: Button 1=Sell LUNAR, 2=Sell Regolith, 3=Prices, 4=Home */
+  /** MARKET: Button 1=Buy, 2=Sell, 3=Prices, 4=Home */
   private async handleMarket(buttonIndex: number): Promise<FrameResponse> {
     if (buttonIndex === 4) return this.homeScreen();
 
-    // Market actions (price display for now — trades come later)
+    // All market buttons show the market screen with live prices
     return this.marketScreen({
-      action: buttonIndex === 3 ? "prices" : "sell",
+      action: buttonIndex === 1 ? "buy" : buttonIndex === 2 ? "sell" : "prices",
     });
   }
 
@@ -297,14 +303,68 @@ export class GameState {
     });
   }
 
-  marketScreen(extra?: { action?: string }): FrameResponse {
+  async marketScreen(extra?: { action?: string }): Promise<FrameResponse> {
+    const overview = await marketEngine.getMarketOverview(this.player.id);
+
+    // Encode prices for image generation
+    const priceParams: Record<string, string | number> = {
+      balance: Math.floor(this.player.state.lunarBalance),
+      action: extra?.action ?? "overview",
+      alertCount: overview.alerts.length,
+    };
+
+    for (const r of overview.resources) {
+      const key = r.type.toLowerCase();
+      priceParams[`price_${key}`] = r.currentPrice;
+      priceParams[`change_${key}`] = r.changePercent;
+      priceParams[`trend_${key}`] = r.trend;
+    }
+
     return buildFrameResponse({
       screen: "market",
       fid: this.player.fid,
+      imageParams: priceParams,
+    });
+  }
+
+  /** Build a Frame response for a trade result (success or failure). */
+  buildTradeResultScreen(result: TradeResult): FrameResponse {
+    if (result.success) {
+      return buildFrameResponse({
+        screen: "result",
+        fid: this.player.fid,
+        imageParams: {
+          success: 1,
+          tradeResult: 1,
+          side: result.side,
+          resource: result.resource,
+          quantity: result.filledQuantity,
+          avgPrice: result.avgPrice,
+          totalCost: result.totalCost,
+          slippage: result.slippage,
+          balance: Math.floor(this.player.state.lunarBalance),
+        },
+        buttons: [
+          { label: "📈 Market", action: "post" },
+          { label: "🏠 Home", action: "post" },
+        ],
+      });
+    }
+
+    return buildFrameResponse({
+      screen: "result",
+      fid: this.player.fid,
       imageParams: {
-        balance: Math.floor(this.player.state.lunarBalance),
-        action: extra?.action ?? "overview",
+        success: 0,
+        tradeResult: 1,
+        side: result.side,
+        resource: result.resource,
+        error: result.error ?? "Trade failed",
       },
+      buttons: [
+        { label: "📈 Try Again", action: "post" },
+        { label: "🏠 Home", action: "post" },
+      ],
     });
   }
 

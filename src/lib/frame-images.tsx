@@ -444,16 +444,112 @@ export function generateBuildImage(params: URLSearchParams): ImageResponse {
 
 export function generateMarketImage(params: URLSearchParams): ImageResponse {
   const balance = params.get("balance") ?? "0";
+  const alertCount = Number(params.get("alertCount") ?? "0");
+
+  // Parse live prices from query params (set by marketScreen in game-state)
+  const resources: Array<{
+    type: string;
+    icon: string;
+    price: string;
+    change: string;
+    trend: string;
+  }> = [];
+
+  const resourceMeta: Record<string, { display: string; icon: string }> = {
+    regolith: { display: "REGOLITH", icon: "🪨" },
+    water_ice: { display: "WATER ICE", icon: "🧊" },
+    helium3: { display: "HELIUM-3", icon: "⚛️" },
+    rare_earth: { display: "RARE EARTH", icon: "💎" },
+  };
+
+  for (const [key, meta] of Object.entries(resourceMeta)) {
+    const price = params.get(`price_${key}`);
+    const change = params.get(`change_${key}`);
+    const trend = params.get(`trend_${key}`) ?? "stable";
+    if (price) {
+      const changeNum = Number(change ?? 0);
+      resources.push({
+        type: meta.display,
+        icon: meta.icon,
+        price: Number(price).toFixed(2),
+        change: `${changeNum >= 0 ? "+" : ""}${changeNum.toFixed(1)}%`,
+        trend,
+      });
+    }
+  }
+
+  // Fallback if no live data yet
+  if (resources.length === 0) {
+    resources.push(
+      {
+        type: "REGOLITH",
+        icon: "🪨",
+        price: "2.50",
+        change: "—",
+        trend: "stable",
+      },
+      {
+        type: "WATER ICE",
+        icon: "🧊",
+        price: "8.75",
+        change: "—",
+        trend: "stable",
+      },
+      {
+        type: "HELIUM-3",
+        icon: "⚛️",
+        price: "45.00",
+        change: "—",
+        trend: "stable",
+      },
+      {
+        type: "RARE EARTH",
+        icon: "💎",
+        price: "120.00",
+        change: "—",
+        trend: "stable",
+      },
+    );
+  }
 
   return new ImageResponse(
     <div style={{ ...baseStyle, background: gradients.market }}>
-      <div style={{ display: "flex", fontSize: 36, fontWeight: "bold" }}>
-        📈 Lunar Market
-      </div>
       <div
-        style={{ display: "flex", fontSize: 20, opacity: 0.7, marginTop: 8 }}
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
       >
-        💰 Balance: {formatLunar(Number(balance))}
+        <div style={{ display: "flex", fontSize: 36, fontWeight: "bold" }}>
+          📈 Lunar Market
+        </div>
+        <div style={{ display: "flex", gap: 12, fontSize: 18 }}>
+          <span
+            style={{
+              display: "flex",
+              background: "rgba(255,255,255,0.1)",
+              padding: "4px 12px",
+              borderRadius: 6,
+            }}
+          >
+            💰 {formatLunar(Number(balance))}
+          </span>
+          {alertCount > 0 && (
+            <span
+              style={{
+                display: "flex",
+                background: "rgba(251,191,36,0.2)",
+                border: "1px solid rgba(251,191,36,0.4)",
+                padding: "4px 12px",
+                borderRadius: 6,
+                color: "#fbbf24",
+              }}
+            >
+              🔔 {alertCount}
+            </span>
+          )}
+        </div>
       </div>
 
       <div
@@ -461,48 +557,51 @@ export function generateMarketImage(params: URLSearchParams): ImageResponse {
           display: "flex",
           flexDirection: "column",
           gap: 12,
-          marginTop: 32,
+          marginTop: 24,
           flex: 1,
         }}
       >
-        {[
-          { resource: "REGOLITH", icon: "🪨", price: "2.50", change: "+5.2%" },
-          { resource: "WATER ICE", icon: "🧊", price: "8.75", change: "-1.3%" },
-          {
-            resource: "HELIUM-3",
-            icon: "⚛️",
-            price: "45.00",
-            change: "+12.1%",
-          },
-          {
-            resource: "RARE EARTH",
-            icon: "💎",
-            price: "120.00",
-            change: "+0.8%",
-          },
-        ].map((r, i) => (
+        {resources.map((r, i) => (
           <div
             key={i}
             style={{
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              padding: "10px 18px",
+              padding: "12px 18px",
               background: "rgba(255,255,255,0.06)",
+              border:
+                r.trend === "up"
+                  ? "1px solid rgba(74,222,128,0.15)"
+                  : r.trend === "down"
+                    ? "1px solid rgba(248,113,113,0.15)"
+                    : "1px solid rgba(255,255,255,0.08)",
               borderRadius: 10,
               fontSize: 20,
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ display: "flex" }}>{r.icon}</span>
-              <span style={{ display: "flex" }}>{r.resource}</span>
+              <span style={{ display: "flex", fontSize: 24 }}>{r.icon}</span>
+              <span style={{ display: "flex", fontWeight: "bold" }}>
+                {r.type}
+              </span>
             </div>
-            <div style={{ display: "flex", gap: 16 }}>
-              <span style={{ display: "flex" }}>{r.price} $L</span>
+            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+              <span style={{ display: "flex", fontWeight: "bold" }}>
+                {r.price} $L
+              </span>
               <span
                 style={{
                   display: "flex",
-                  color: r.change.startsWith("+") ? "#4ade80" : "#f87171",
+                  color:
+                    r.trend === "up"
+                      ? "#4ade80"
+                      : r.trend === "down"
+                        ? "#f87171"
+                        : "#9ca3af",
+                  fontSize: 18,
+                  minWidth: 70,
+                  justifyContent: "flex-end",
                 }}
               >
                 {r.change}
@@ -520,7 +619,7 @@ export function generateMarketImage(params: URLSearchParams): ImageResponse {
           marginTop: 8,
         }}
       >
-        Prices update every 5 minutes · Market coming soon
+        Btn 1: Buy · 2: Sell · 3: Prices · 4: Home
       </div>
     </div>,
     { width: W, height: H },
@@ -596,12 +695,92 @@ export function generateAllianceImage(params: URLSearchParams): ImageResponse {
 
 export function generateResultImage(params: URLSearchParams): ImageResponse {
   const success = params.get("success") === "1";
+  const isTradeResult = params.get("tradeResult") === "1";
   const moduleName = (params.get("module") ?? "MODULE").replace(/_/g, " ");
   const error = params.get("error") ?? "";
   const balance = params.get("balance") ?? "0";
   const modules = params.get("modules") ?? "0";
 
+  // Trade-specific params
+  const side = params.get("side") ?? "";
+  const resource = (params.get("resource") ?? "").replace(/_/g, " ");
+  const quantity = params.get("quantity") ?? "0";
+  const avgPrice = params.get("avgPrice") ?? "0";
+  const totalCost = params.get("totalCost") ?? "0";
+  const slippage = params.get("slippage") ?? "0";
+
   const bg = success ? gradients.result : gradients.error;
+
+  // Trade result layout
+  if (isTradeResult) {
+    return new ImageResponse(
+      <div
+        style={{
+          ...baseStyle,
+          background: bg,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <div style={{ display: "flex", fontSize: 56 }}>
+          {success ? "✅" : "❌"}
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            fontSize: 32,
+            fontWeight: "bold",
+            marginTop: 16,
+            textTransform: "uppercase",
+          }}
+        >
+          {success
+            ? `${side} ${quantity} ${resource}`
+            : `${side} ${resource} Failed`}
+        </div>
+
+        {success ? (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 8,
+              marginTop: 20,
+            }}
+          >
+            <div style={{ display: "flex", fontSize: 20, opacity: 0.8 }}>
+              💰 Avg Price: {Number(avgPrice).toFixed(4)} $L
+            </div>
+            <div style={{ display: "flex", fontSize: 20, opacity: 0.8 }}>
+              📊 Total: {Number(totalCost).toFixed(2)} $L
+            </div>
+            <div style={{ display: "flex", fontSize: 18, opacity: 0.6 }}>
+              Slippage: {slippage}% · Balance: {formatLunar(Number(balance))}
+            </div>
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              fontSize: 20,
+              opacity: 0.8,
+              marginTop: 16,
+              color: "#fca5a5",
+              maxWidth: 600,
+              textAlign: "center",
+            }}
+          >
+            {error}
+          </div>
+        )}
+      </div>,
+      { width: W, height: H },
+    );
+  }
+
+  // Original build result layout
 
   return new ImageResponse(
     <div

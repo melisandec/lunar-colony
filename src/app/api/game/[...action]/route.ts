@@ -46,6 +46,7 @@ export async function POST(
     const screenMap: Record<string, Screen> = {
       build: "build",
       market: "market",
+      trade: "market",
       alliance: "alliance",
     };
 

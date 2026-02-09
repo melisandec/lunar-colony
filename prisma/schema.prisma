@@ -244,7 +244,53 @@ model ResourcePrice {
   demand          Decimal      @default(0) @db.Decimal(20, 4)
   lastUpdatedAt   DateTime     @default(now())
 
+  // --- Volatility & bounds ---
+  volatility      Decimal      @default(0.05) @db.Decimal(5, 4)  // 0–1 scale
+  minPrice        Decimal      @db.Decimal(10, 4)                // Floor
+  maxPrice        Decimal      @db.Decimal(10, 4)                // Ceiling
+  seasonalPhase   Decimal      @default(0) @db.Decimal(6, 4)     // Radians for sin wave
+
+  history         PriceHistory[]
+
   @@index([type])
+}
+
+// ---------------------------------------------------------------------------
+// PriceHistory — time-series snapshots (last 100 kept per resource)
+// ---------------------------------------------------------------------------
+
+model PriceHistory {
+  id              String       @id @default(cuid())
+  resourcePriceId String
+  resourcePrice   ResourcePrice @relation(fields: [resourcePriceId], references: [id], onDelete: Cascade)
+  type            ResourceType
+  price           Decimal      @db.Decimal(10, 4)
+  volume          Decimal      @default(0) @db.Decimal(20, 4)
+  supply          Decimal      @default(0) @db.Decimal(20, 4)
+  demand          Decimal      @default(0) @db.Decimal(20, 4)
+  snapshotAt      DateTime     @default(now())
+
+  @@index([type, snapshotAt(sort: Desc)])
+  @@index([resourcePriceId, snapshotAt(sort: Desc)])
+}
+
+// ---------------------------------------------------------------------------
+// PriceAlert — player notifications for significant price movements
+// ---------------------------------------------------------------------------
+
+model PriceAlert {
+  id              String       @id @default(cuid())
+  playerId        String
+  resource        ResourceType
+  priceAtAlert    Decimal      @db.Decimal(10, 4)
+  changePercent   Decimal      @db.Decimal(8, 4)       // e.g. +15.50 or -10.20
+  direction       String                                // "up" | "down" | "spike"
+  message         String
+  isRead          Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+
+  @@index([playerId, isRead, createdAt(sort: Desc)])
+  @@index([createdAt])                                  // Prune old alerts
 }
 
 // ---------------------------------------------------------------------------
