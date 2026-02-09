@@ -1,236 +1,198 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ImageResponse } from "@vercel/og";
 import { neynar } from "@/lib/api-clients/neynar";
-import gameEngine from "@/lib/game-engine";
+import { GameState } from "@/lib/game-state";
 import {
-  absoluteUrl,
-  frameHtmlResponse,
-  FRAME_IMAGE,
-  formatLunar,
-} from "@/lib/utils";
+  buildFrameResponse,
+  frameResponseToHtml,
+  type Screen,
+} from "@/lib/frame-response";
+import { absoluteUrl } from "@/lib/utils";
 
-/**
- * GET /api/frames
- * Returns the initial Frame HTML with the landing image.
- */
+// ---------------------------------------------------------------------------
+// In-memory validation cache (5-minute TTL, ~1 000 entries max)
+// Saves Neynar free-tier quota (1k req/day)
+// ---------------------------------------------------------------------------
+
+interface CachedValidation {
+  fid: number;
+  buttonIndex: number;
+  inputText?: string;
+  expiresAt: number;
+}
+
+const validationCache = new Map<string, CachedValidation>();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_CACHE_SIZE = 1000;
+
+function getCachedValidation(messageBytes: string): CachedValidation | null {
+  const entry = validationCache.get(messageBytes);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    validationCache.delete(messageBytes);
+    return null;
+  }
+  return entry;
+}
+
+function setCachedValidation(messageBytes: string, data: CachedValidation) {
+  // Evict oldest entries if cache is full
+  if (validationCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = validationCache.keys().next().value;
+    if (firstKey) validationCache.delete(firstKey);
+  }
+  validationCache.set(messageBytes, {
+    ...data,
+    expiresAt: Date.now() + CACHE_TTL_MS,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Validate incoming frame message
+// ---------------------------------------------------------------------------
+
+async function validateFrameMessage(body: Record<string, unknown>): Promise<{
+  fid: number;
+  buttonIndex: number;
+  inputText?: string;
+}> {
+  const trustedData = body.trustedData as { messageBytes?: string } | undefined;
+  const untrustedData = body.untrustedData as
+    | {
+        fid?: number;
+        buttonIndex?: number;
+        inputText?: string;
+      }
+    | undefined;
+
+  // --- Production: verify with Neynar (cached) ---
+  if (process.env.NODE_ENV === "production" && trustedData?.messageBytes) {
+    const cached = getCachedValidation(trustedData.messageBytes);
+    if (cached) {
+      return {
+        fid: cached.fid,
+        buttonIndex: cached.buttonIndex,
+        inputText: cached.inputText,
+      };
+    }
+
+    const result = await neynar.validateFrameMessage(trustedData.messageBytes);
+    if (!result.valid) {
+      throw new Error("INVALID_SIGNATURE");
+    }
+
+    const validated = {
+      fid: result.action.fid,
+      buttonIndex: result.action.buttonIndex,
+      inputText: result.action.inputText,
+    };
+
+    setCachedValidation(trustedData.messageBytes, {
+      ...validated,
+      expiresAt: 0, // will be set by setCachedValidation
+    });
+
+    return validated;
+  }
+
+  // --- Development: trust untrusted data ---
+  return {
+    fid: untrustedData?.fid ?? 1,
+    buttonIndex: untrustedData?.buttonIndex ?? 1,
+    inputText: untrustedData?.inputText,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/frames — initial Frame landing page
+// ---------------------------------------------------------------------------
+
 export async function GET() {
-  const html = frameHtmlResponse({
-    imageUrl: absoluteUrl("/api/frames?img=landing"),
-    postUrl: absoluteUrl("/api/frames"),
+  const response = buildFrameResponse({
+    screen: "home",
+    fid: 0,
+    imageParams: { screen: "landing" }, // Override to show landing image
     buttons: [
-      { label: "🚀 Play Now", action: "post" },
-      { label: "📊 Leaderboard", action: "post" },
+      { label: "⚡ Produce", action: "post" },
+      { label: "🏗️ Colony", action: "post" },
+      { label: "📈 Market", action: "post" },
+      { label: "🤝 Alliance", action: "post" },
     ],
   });
 
+  // Override image to landing
+  response.imageUrl = absoluteUrl("/api/frames/image?screen=landing");
+
+  const html = frameResponseToHtml(response);
   return new NextResponse(html, {
     headers: { "Content-Type": "text/html" },
   });
 }
 
-/**
- * POST /api/frames
- * Handles all Frame button interactions.
- */
+// ---------------------------------------------------------------------------
+// POST /api/frames — main Frame interaction handler
+// ---------------------------------------------------------------------------
+
 export async function POST(req: NextRequest) {
   try {
+    // 1. Parse & validate
     const body = await req.json();
-    const { trustedData, untrustedData } = body;
+    let validated: { fid: number; buttonIndex: number; inputText?: string };
 
-    // Validate the Frame message via Neynar
-    let fid: number;
-    let buttonIndex: number;
-
-    if (process.env.NODE_ENV === "production" && trustedData?.messageBytes) {
-      const validation = await neynar.validateFrameMessage(
-        trustedData.messageBytes,
-      );
-
-      if (!validation.valid) {
+    try {
+      validated = await validateFrameMessage(body);
+    } catch (err) {
+      if (err instanceof Error && err.message === "INVALID_SIGNATURE") {
         return NextResponse.json(
           { error: "Invalid Frame message" },
           { status: 401 },
         );
       }
-
-      fid = validation.action.fid;
-      buttonIndex = validation.action.buttonIndex;
-    } else {
-      // Development: use untrusted data
-      fid = untrustedData?.fid || 1;
-      buttonIndex = untrustedData?.buttonIndex || 1;
+      // Rate limited — return a friendly Frame response
+      return friendlyErrorFrame("Rate limited — try again in a moment");
     }
 
-    // Get or create the player
-    const player = await gameEngine.getOrCreatePlayer(fid);
-    const state = gameEngine.calculateColonyState(player);
+    const { fid, buttonIndex, inputText } = validated;
 
-    // Route based on button pressed
-    switch (buttonIndex) {
-      case 1: {
-        // "Play Now" or "Collect" - show colony view
-        const earnings = await gameEngine.collectEarnings(state.playerId);
+    // 2. Determine current screen from postUrl query params
+    const url = new URL(req.url);
+    const currentScreen = (url.searchParams.get("screen") ?? "home") as Screen;
 
-        const html = frameHtmlResponse({
-          imageUrl: absoluteUrl(
-            `/api/frames?img=colony&fid=${fid}&collected=${earnings.collected}`,
-          ),
-          postUrl: absoluteUrl("/api/frames"),
-          buttons: [
-            { label: "💰 Collect", action: "post" },
-            { label: "🔨 Build", action: "post" },
-            { label: "📊 Stats", action: "post" },
-          ],
-        });
+    // 3. Load or create player state (first interaction = auto-create)
+    const gameState = await GameState.load(fid);
 
-        return new NextResponse(html, {
-          headers: { "Content-Type": "text/html" },
-        });
-      }
+    // 4. Dispatch action through state machine
+    const frameResponse = await gameState.handleAction({
+      fid,
+      buttonIndex,
+      inputText,
+      currentScreen,
+    });
 
-      case 2: {
-        // "Build" or "Leaderboard"
-        const html = frameHtmlResponse({
-          imageUrl: absoluteUrl(`/api/frames?img=build&fid=${fid}`),
-          postUrl: absoluteUrl("/api/game/build"),
-          buttons: [
-            { label: "⚡ Solar Panel", action: "post" },
-            { label: "⛏️ Mining Rig", action: "post" },
-            { label: "🏠 Habitat", action: "post" },
-            { label: "🔙 Back", action: "post" },
-          ],
-        });
-
-        return new NextResponse(html, {
-          headers: { "Content-Type": "text/html" },
-        });
-      }
-
-      case 3: {
-        // "Stats" view
-        const html = frameHtmlResponse({
-          imageUrl: absoluteUrl(`/api/frames?img=stats&fid=${fid}`),
-          postUrl: absoluteUrl("/api/frames"),
-          buttons: [{ label: "🔙 Back to Colony", action: "post" }],
-        });
-
-        return new NextResponse(html, {
-          headers: { "Content-Type": "text/html" },
-        });
-      }
-
-      default: {
-        // Fallback to landing
-        return GET();
-      }
-    }
+    // 5. Serialize and return
+    const html = frameResponseToHtml(frameResponse);
+    return new NextResponse(html, {
+      headers: { "Content-Type": "text/html" },
+    });
   } catch (error) {
     console.error("Frame POST error:", error);
-    return GET(); // Fallback to landing on error
+    return friendlyErrorFrame("Something went wrong — tap to retry");
   }
 }
 
-// --- Dynamic Frame Image Generation ---
+// ---------------------------------------------------------------------------
+// Error fallback — returns a valid Frame so the user isn't stuck
+// ---------------------------------------------------------------------------
 
-/**
- * Frame image generation endpoint.
- * Query params: ?img=landing|colony|build|stats&fid=XXX
- */
-export async function generateImage(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const imageType = searchParams.get("img") || "landing";
-  const fid = searchParams.get("fid");
-  void fid; // used in colony/stats image generation (upcoming)
+function friendlyErrorFrame(message: string): NextResponse {
+  const response = buildFrameResponse({
+    screen: "home",
+    fid: 0,
+    imageParams: { screen: "landing", error: message },
+    buttons: [{ label: "🔄 Retry", action: "post" }],
+  });
 
-  // Landing screen image
-  if (imageType === "landing") {
-    return new ImageResponse(
-      <div
-        style={{
-          width: FRAME_IMAGE.WIDTH,
-          height: FRAME_IMAGE.HEIGHT,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "linear-gradient(135deg, #0f0c29, #302b63, #24243e)",
-          color: "white",
-          fontFamily: "sans-serif",
-        }}
-      >
-        <div style={{ fontSize: 64, fontWeight: "bold", display: "flex" }}>
-          🌙 Lunar Colony Tycoon
-        </div>
-        <div
-          style={{
-            fontSize: 28,
-            marginTop: 16,
-            opacity: 0.8,
-            display: "flex",
-          }}
-        >
-          Build your lunar empire. Earn $LUNAR.
-        </div>
-        <div
-          style={{
-            fontSize: 20,
-            marginTop: 32,
-            padding: "12px 24px",
-            background: "rgba(255,255,255,0.15)",
-            borderRadius: 12,
-            display: "flex",
-          }}
-        >
-          Press 🚀 Play Now to begin
-        </div>
-      </div>,
-      { width: FRAME_IMAGE.WIDTH, height: FRAME_IMAGE.HEIGHT },
-    );
-  }
-
-  // Colony view (placeholder)
-  const collected = searchParams.get("collected") || "0";
-
-  return new ImageResponse(
-    <div
-      style={{
-        width: FRAME_IMAGE.WIDTH,
-        height: FRAME_IMAGE.HEIGHT,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)",
-        color: "white",
-        fontFamily: "sans-serif",
-      }}
-    >
-      <div style={{ fontSize: 36, fontWeight: "bold", display: "flex" }}>
-        🏗️ Your Lunar Colony
-      </div>
-      {collected !== "0" && (
-        <div
-          style={{
-            fontSize: 24,
-            color: "#4ade80",
-            marginTop: 8,
-            display: "flex",
-          }}
-        >
-          +{formatLunar(Number(collected))} collected!
-        </div>
-      )}
-      <div
-        style={{
-          fontSize: 20,
-          marginTop: 24,
-          opacity: 0.7,
-          display: "flex",
-        }}
-      >
-        Colony view coming soon...
-      </div>
-    </div>,
-    { width: FRAME_IMAGE.WIDTH, height: FRAME_IMAGE.HEIGHT },
-  );
+  const html = frameResponseToHtml(response);
+  return new NextResponse(html, {
+    headers: { "Content-Type": "text/html" },
+  });
 }

@@ -46,11 +46,50 @@ function d(val: Prisma.Decimal | number | null | undefined): number {
   return typeof val === "number" ? val : Number(val);
 }
 
+// --- Starter module generation ---
+
+/** Module types eligible for random starter selection. */
+const STARTER_MODULE_POOL: ModuleType[] = [
+  "SOLAR_PANEL",
+  "MINING_RIG",
+  "HABITAT",
+  "WATER_EXTRACTOR",
+  "OXYGEN_GENERATOR",
+  "STORAGE_DEPOT",
+];
+
+const STARTER_BASE_OUTPUT: Record<ModuleType, number> = {
+  SOLAR_PANEL: 10,
+  MINING_RIG: 25,
+  HABITAT: 5,
+  RESEARCH_LAB: 15,
+  WATER_EXTRACTOR: 20,
+  OXYGEN_GENERATOR: 18,
+  STORAGE_DEPOT: 8,
+  LAUNCH_PAD: 50,
+};
+
+/**
+ * Pick N distinct random modules from the starter pool.
+ * Always includes at least one SOLAR_PANEL for guaranteed energy.
+ */
+function pickStarterModules(count: number): ModuleType[] {
+  const result: ModuleType[] = ["SOLAR_PANEL"]; // Guaranteed first
+  const pool = STARTER_MODULE_POOL.filter((t) => t !== "SOLAR_PANEL");
+
+  while (result.length < count && pool.length > 0) {
+    const idx = Math.floor(Math.random() * pool.length);
+    const picked = pool.splice(idx, 1)[0];
+    if (picked) result.push(picked);
+  }
+  return result;
+}
+
 // --- Player Management ---
 
 /**
  * Get or create a player by their Farcaster FID.
- * New players start with a free Solar Panel and starting $LUNAR.
+ * New players start with 4 random starter modules and starting $LUNAR.
  */
 export async function getOrCreatePlayer(fid: number, username?: string) {
   let player = await prisma.player.findUnique({
@@ -61,22 +100,24 @@ export async function getOrCreatePlayer(fid: number, username?: string) {
   });
 
   if (!player) {
+    const starters = pickStarterModules(4);
+
     player = await prisma.player.create({
       data: {
         fid,
         username: username || `player_${fid}`,
         lunarBalance: GAME_CONSTANTS.STARTING_LUNAR,
-        moduleCount: 1,
-        // Start with a free solar panel
+        moduleCount: starters.length,
+        // 4 random starter modules
         modules: {
-          create: {
-            type: "SOLAR_PANEL",
-            tier: "COMMON",
+          create: starters.map((type, i) => ({
+            type,
+            tier: "COMMON" as const,
             level: 1,
-            coordinates: { x: 0, y: 0 },
-            baseOutput: GAME_CONSTANTS.BASE_PRODUCTION_RATE,
+            coordinates: { x: i % 5, y: Math.floor(i / 5) },
+            baseOutput: STARTER_BASE_OUTPUT[type],
             efficiency: 100,
-          },
+          })),
         },
         // Initialize LUNAR resource balance
         resources: {
@@ -210,16 +251,7 @@ export async function buildModule(
   }
 
   // Production rate based on COMMON tier blueprint
-  const productionRates: Record<ModuleType, number> = {
-    SOLAR_PANEL: 10,
-    MINING_RIG: 25,
-    HABITAT: 5,
-    RESEARCH_LAB: 15,
-    WATER_EXTRACTOR: 20,
-    OXYGEN_GENERATOR: 18,
-    STORAGE_DEPOT: 8,
-    LAUNCH_PAD: 50,
-  };
+  const baseOutput = STARTER_BASE_OUTPUT[moduleType];
 
   // Find next open grid position (simple sequential)
   const usedPositions = new Set(
@@ -255,7 +287,7 @@ export async function buildModule(
         tier: "COMMON",
         level: 1,
         coordinates: coords,
-        baseOutput: productionRates[moduleType],
+        baseOutput: baseOutput,
         efficiency: 100,
       },
     }),

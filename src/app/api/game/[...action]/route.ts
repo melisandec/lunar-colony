@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { neynar } from "@/lib/api-clients/neynar";
-import gameEngine from "@/lib/game-engine";
-import { absoluteUrl, frameHtmlResponse, type ModuleType } from "@/lib/utils";
+import { GameState } from "@/lib/game-state";
+import { frameResponseToHtml, type Screen } from "@/lib/frame-response";
 
 /**
  * POST /api/game/[...action]
- * Handles game action endpoints (build, upgrade, etc.)
+ * Handles game-action sub-routes (build, upgrade, trade, etc.)
+ * Delegates to GameState for action dispatch and response building.
  */
 export async function POST(
   req: NextRequest,
@@ -20,6 +21,7 @@ export async function POST(
     // Validate
     let fid: number;
     let buttonIndex: number;
+    let inputText: string | undefined;
 
     if (process.env.NODE_ENV === "production" && trustedData?.messageBytes) {
       const validation = await neynar.validateFrameMessage(
@@ -30,73 +32,37 @@ export async function POST(
       }
       fid = validation.action.fid;
       buttonIndex = validation.action.buttonIndex;
+      inputText = validation.action.inputText;
     } else {
       fid = untrustedData?.fid || 1;
       buttonIndex = untrustedData?.buttonIndex || 1;
+      inputText = untrustedData?.inputText;
     }
 
-    const player = await gameEngine.getOrCreatePlayer(fid);
+    // Load player state
+    const gameState = await GameState.load(fid);
 
-    // --- Build Action ---
-    if (actionPath === "build") {
-      // Button 4 = Back
-      if (buttonIndex === 4) {
-        const html = frameHtmlResponse({
-          imageUrl: absoluteUrl(
-            `/api/frames?img=colony&fid=${fid}&collected=0`,
-          ),
-          postUrl: absoluteUrl("/api/frames"),
-          buttons: [
-            { label: "💰 Collect", action: "post" },
-            { label: "🔨 Build", action: "post" },
-            { label: "📊 Stats", action: "post" },
-          ],
-        });
-        return new NextResponse(html, {
-          headers: { "Content-Type": "text/html" },
-        });
-      }
+    // Map action paths to screens for the state machine
+    const screenMap: Record<string, Screen> = {
+      build: "build",
+      market: "market",
+      alliance: "alliance",
+    };
 
-      // Map buttons to module types
-      const moduleMap: Record<number, ModuleType> = {
-        1: "SOLAR_PANEL",
-        2: "MINING_RIG",
-        3: "HABITAT",
-      };
+    const currentScreen = screenMap[actionPath] ?? "home";
 
-      const moduleType = moduleMap[buttonIndex];
-      if (!moduleType) {
-        return NextResponse.json(
-          { error: "Invalid selection" },
-          { status: 400 },
-        );
-      }
+    // Dispatch through state machine
+    const frameResponse = await gameState.handleAction({
+      fid,
+      buttonIndex,
+      inputText,
+      currentScreen,
+    });
 
-      const result = await gameEngine.buildModule(player.id, moduleType);
-
-      const html = frameHtmlResponse({
-        imageUrl: absoluteUrl(
-          `/api/frames?img=build_result&fid=${fid}&success=${result.success}&module=${moduleType}&error=${encodeURIComponent(result.error || "")}`,
-        ),
-        postUrl: absoluteUrl("/api/game/build"),
-        buttons: result.success
-          ? [
-              { label: "🔨 Build More", action: "post" },
-              { label: "🔙 Colony", action: "post" },
-            ]
-          : [{ label: "🔙 Back", action: "post" }],
-      });
-
-      return new NextResponse(html, {
-        headers: { "Content-Type": "text/html" },
-      });
-    }
-
-    // --- Unknown action fallback ---
-    return NextResponse.json(
-      { error: `Unknown action: ${actionPath}` },
-      { status: 404 },
-    );
+    const html = frameResponseToHtml(frameResponse);
+    return new NextResponse(html, {
+      headers: { "Content-Type": "text/html" },
+    });
   } catch (error) {
     console.error("Game action error:", error);
     return NextResponse.json(
