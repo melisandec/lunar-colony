@@ -189,6 +189,9 @@ export class GameState {
   private async runProductionCycle(): Promise<FrameResponse> {
     const earnings = await gameEngine.collectEarnings(this.player.id);
 
+    // Sync denormalized summary for future fast reads (fire-and-forget)
+    gameEngine.syncPlayerSummary(this.player.id);
+
     // Roll for random events on production action
     await rollRandomEvent("production", this.player.id).catch(() => {});
     await autoParticipateInActiveEvents(
@@ -241,6 +244,9 @@ export class GameState {
     // Refresh state
     const raw = await gameEngine.getOrCreatePlayer(this.player.fid);
     this.player.state = gameEngine.calculateColonyState(raw);
+
+    // Sync summary after build (fire-and-forget)
+    gameEngine.syncPlayerSummary(this.player.id);
 
     return buildFrameResponse({
       screen: "result",

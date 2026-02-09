@@ -193,6 +193,8 @@ model Module {
   @@index([playerId, type])                 // "how many rigs do I have?"
   @@index([playerId, deletedAt])            // soft-delete scoped
   @@index([isActive, lastCollectedAt])      // cron tick query
+  @@index([installedAt])                    // age-based calculations
+  @@index([playerId, isActive, deletedAt])  // hot path: active module lookup
 }
 
 // ---------------------------------------------------------------------------
@@ -224,6 +226,8 @@ model CrewMember {
 
   @@index([playerId, isActive])
   @@index([playerId, specialty])
+  @@index([assignedModuleId])               // crew → module JOIN
+  @@index([playerId, isActive, deletedAt])  // hot path: active crew lookup
 }
 
 // ---------------------------------------------------------------------------
@@ -326,6 +330,7 @@ model Transaction {
 
   @@index([playerId, createdAt(sort: Desc)])            // Recent txns
   @@index([playerId, type])
+  @@index([type, createdAt])                             // Analytics by type
   @@index([createdAt])                                  // Time-range scans
 }
 
@@ -553,6 +558,35 @@ model LeaderboardSnapshot {
   @@unique([fid, period])
   @@index([period, rank])
   @@index([snapshotAt])
+}
+
+// ---------------------------------------------------------------------------
+// PlayerSummary — denormalized snapshot for sub-200ms Frame reads
+// Updated by application logic after every state-changing action.
+// ---------------------------------------------------------------------------
+
+model PlayerSummary {
+  playerId        String   @id                          // FK to Player.id
+  fid             Int      @unique
+  username        String?
+  lunarBalance    Decimal  @default(0)  @db.Decimal(20, 4)
+  level           Int      @default(1)
+  xp              Decimal  @default(0)  @db.Decimal(20, 2)
+  moduleCount     Int      @default(0)
+  activeModules   Int      @default(0)
+  crewCount       Int      @default(0)
+  totalEarnings   Decimal  @default(0)  @db.Decimal(20, 4)
+  productionRate  Int      @default(0)                  // Pre-computed per-tick rate
+  pendingEarnings Int      @default(0)                  // Estimated pending (stale-okay)
+  dailyStreak     Int      @default(0)
+  efficiency      Decimal  @default(100) @db.Decimal(5, 2)
+  lastCollectedAt DateTime @default(now())
+  lastUpdated     DateTime @updatedAt
+
+  @@index([fid])
+  @@index([lunarBalance(sort: Desc)])                   // Leaderboard
+  @@index([totalEarnings(sort: Desc)])                  // Leaderboard
+  @@index([level(sort: Desc)])                          // Leaderboard
 }
 
 // ---------------------------------------------------------------------------

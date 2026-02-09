@@ -14,6 +14,7 @@
 import prisma from "@/lib/database";
 import { GAME_CONSTANTS, type ModuleType } from "@/lib/utils";
 import type { Prisma } from "@prisma/client";
+import { upsertPlayerSummary } from "@/lib/database/queries";
 
 // --- Types ---
 
@@ -332,6 +333,7 @@ export async function buildModule(
 /**
  * Collect pending earnings and update the player's balance.
  * Called when a player interacts with the frame.
+ * After crediting, syncs the PlayerSummary for fast future reads.
  */
 export async function collectEarnings(playerId: string): Promise<{
   collected: number;
@@ -390,12 +392,23 @@ export async function collectEarnings(playerId: string): Promise<{
   };
 }
 
+/**
+ * Sync the PlayerSummary cache after a state-changing action.
+ * Fire-and-forget — never blocks the Frame response.
+ */
+export function syncPlayerSummary(playerId: string): void {
+  upsertPlayerSummary(playerId).catch((e) =>
+    console.error("Summary sync failed:", e),
+  );
+}
+
 export const gameEngine = {
   getOrCreatePlayer,
   calculateColonyState,
   calculateModuleCost,
   buildModule,
   collectEarnings,
+  syncPlayerSummary,
 };
 
 export default gameEngine;

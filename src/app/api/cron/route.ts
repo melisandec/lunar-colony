@@ -5,6 +5,10 @@ import {
   processScheduledEvents,
   checkTriggeredEvents,
 } from "@/lib/event-engine";
+import {
+  refreshAllPlayerSummaries,
+  refreshLeaderboard,
+} from "@/lib/database/queries";
 import { GAME_CONSTANTS } from "@/lib/utils";
 
 /**
@@ -50,11 +54,30 @@ export async function POST(_req: NextRequest) {
 
     clearTimeout(safetyTimeout);
 
+    // Post-production: refresh denormalized summaries + leaderboard
+    // These run sequentially after main jobs to avoid contention
+    const summaryResult = await refreshAllPlayerSummaries({
+      batchSize: 200,
+      signal: controller.signal,
+    }).catch((e) => {
+      console.error("Summary refresh error:", e);
+      return { refreshed: 0, durationMs: 0 };
+    });
+
+    const leaderboardResult = await refreshLeaderboard("ALLTIME", 100).catch(
+      (e) => {
+        console.error("Leaderboard refresh error:", e);
+        return { entries: 0, durationMs: 0 };
+      },
+    );
+
     return NextResponse.json({
       success: true,
       production: productionResult,
       market: marketResult,
       events: eventResult,
+      summaries: summaryResult,
+      leaderboard: leaderboardResult,
       aborted: controller.signal.aborted,
     });
   } catch (error) {
