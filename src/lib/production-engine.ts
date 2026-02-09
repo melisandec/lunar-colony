@@ -21,6 +21,7 @@ import {
   autoParticipateInActiveEvents,
   type ModifierSet,
 } from "@/lib/event-engine";
+import { GameMetrics } from "@/lib/metrics";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -476,6 +477,31 @@ export async function processProductionCycle(options?: {
       },
     })
     .catch((e) => console.error("Failed to log production event:", e));
+
+  // Emit structured metric for monitoring
+  if (result.processed > 0) {
+    GameMetrics.trackProduction(
+      "batch",
+      result.totalLunarProduced,
+      result.processed,
+      result.failed === 0
+        ? 100
+        : Math.round(
+            (result.processed / (result.processed + result.failed)) * 100,
+          ),
+    );
+  }
+  if (result.failed > 0) {
+    GameMetrics.trackError(
+      new Error(`Production cycle: ${result.failed} player(s) failed`),
+      {
+        processed: result.processed,
+        failed: result.failed,
+        errors: result.errors.slice(0, 5),
+      },
+      "warning",
+    );
+  }
 
   return result;
 }

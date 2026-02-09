@@ -18,6 +18,7 @@
 
 import prisma from "@/lib/database";
 import type { ResourceType } from "@/lib/utils";
+import { GameMetrics } from "@/lib/metrics";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -598,6 +599,17 @@ export async function executeTrade(
         },
       });
     });
+
+    // Emit structured metric
+    GameMetrics.trackTrade(
+      playerId,
+      resource,
+      side,
+      filledQty,
+      Math.round(avgPrice * 10000) / 10000,
+      Math.round(totalSpent * 10000) / 10000,
+      Math.round(slippage * 100) / 100,
+    );
 
     return {
       success: true,

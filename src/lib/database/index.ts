@@ -1,48 +1,49 @@
 import { PrismaClient } from "@prisma/client";
+import { PrismaNeon } from "@prisma/adapter-neon";
 
 /**
  * Prisma Client singleton for serverless environments.
  *
+ * Prisma 7 uses the "client" engine which requires a driver adapter.
+ * We use @prisma/adapter-neon which creates a WebSocket-based Pool
+ * connection to Neon's serverless driver under the hood.
+ *
  * In development, we attach the client to `globalThis` to prevent
  * creating multiple instances during hot reload.
- *
- * In production (serverless), each cold start creates a new client
- * but Neon's connection pooling handles the rest.
- *
- * Performance features:
- *   - Read-replica client for analytics queries (optional)
- *   - Query-level logging in development
- *   - "$metrics" enabled for production monitoring
  */
+
+function createPrismaClient(
+  connectionString: string,
+  logLevels: Array<"query" | "info" | "warn" | "error">,
+) {
+  const adapter = new PrismaNeon({ connectionString });
+  return new PrismaClient({
+    adapter,
+    log: logLevels,
+  });
+}
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
   readPrisma: PrismaClient | undefined;
 };
 
+const databaseUrl = process.env.DATABASE_URL ?? "";
+const logLevels: Array<"query" | "info" | "warn" | "error"> =
+  process.env.NODE_ENV === "development"
+    ? ["query", "error", "warn"]
+    : ["error"];
+
 export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log:
-      process.env.NODE_ENV === "development"
-        ? ["query", "error", "warn"]
-        : ["error"],
-  });
+  globalForPrisma.prisma ?? createPrismaClient(databaseUrl, logLevels);
 
 /**
  * Read-replica client for analytics / leaderboard queries.
  * Falls back to the primary client if no READ_REPLICA_URL is configured.
- * Neon free-tier supports read replicas via separate connection string.
- *
- * In Prisma 7, the connection URL is configured via prisma.config.ts,
- * so for the read replica we create a separate client instance with
- * its own config. When no replica URL is set, we reuse the primary.
  */
 export const readPrisma: PrismaClient = process.env.READ_REPLICA_URL
   ? (globalForPrisma.readPrisma ??
-    new PrismaClient({
-      log: ["error"],
-    }))
+    createPrismaClient(process.env.READ_REPLICA_URL, ["error"]))
   : prisma;
 
 if (process.env.NODE_ENV !== "production") {

@@ -25,6 +25,7 @@
 
 import prisma from "@/lib/database";
 import { Prisma } from "@prisma/client";
+import { GameMetrics } from "@/lib/metrics";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -497,6 +498,16 @@ export async function processScheduledEvents(): Promise<EventTickResult> {
       endTime: { lt: thirtyDaysAgo },
     },
   });
+
+  // Emit structured metrics for started/completed events
+  for (const eventType of started) {
+    GameMetrics.trackEvent(eventType, eventType, "started");
+  }
+  for (const eventType of completed) {
+    GameMetrics.trackEvent(eventType, eventType, "completed", {
+      rewardsDistributed,
+    });
+  }
 
   return {
     started,

@@ -15,6 +15,7 @@ import prisma from "@/lib/database";
 import { GAME_CONSTANTS, type ModuleType } from "@/lib/utils";
 import type { Prisma } from "@prisma/client";
 import { upsertPlayerSummary } from "@/lib/database/queries";
+import { GameMetrics } from "@/lib/metrics";
 
 // --- Types ---
 
@@ -312,6 +313,13 @@ export async function buildModule(
     }),
   ]);
 
+  GameMetrics.trackPlayerAction(playerId, "build", {
+    moduleType,
+    tier: "COMMON",
+    cost,
+    moduleCount: moduleCount + 1,
+  });
+
   return {
     success: true,
     module: {
@@ -385,6 +393,12 @@ export async function collectEarnings(playerId: string): Promise<{
       },
     }),
   ]);
+
+  GameMetrics.trackPlayerAction(playerId, "collect", {
+    amount: state.pendingEarnings,
+    newBalance: d(updatedPlayer.lunarBalance),
+    moduleCount: player.modules.length,
+  });
 
   return {
     collected: state.pendingEarnings,

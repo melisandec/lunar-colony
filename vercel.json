@@ -1,8 +1,25 @@
 {
+  "buildCommand": "prisma generate && prisma migrate deploy && next build",
+  "installCommand": "npm ci",
+  "framework": "nextjs",
   "crons": [
     {
-      "path": "/api/cron",
+      "path": "/api/cron/daily-production",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/market-update",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/event-check",
+      "schedule": "0 * * * *"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/health",
+      "headers": [{ "key": "Cache-Control", "value": "no-store, max-age=0" }]
     }
   ]
 }
