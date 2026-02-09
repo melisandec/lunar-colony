@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processProductionCycle } from "@/lib/production-engine";
 import { runMarketTick } from "@/lib/market-engine";
+import {
+  processScheduledEvents,
+  checkTriggeredEvents,
+} from "@/lib/event-engine";
 import { GAME_CONSTANTS } from "@/lib/utils";
 
 /**
@@ -28,14 +32,20 @@ export async function POST(_req: NextRequest) {
     // Vercel serverless max is 60 s; stop processing at 50 s to allow cleanup
     const safetyTimeout = setTimeout(() => controller.abort(), 50_000);
 
-    // Run production cycle + market tick in parallel
-    const [productionResult, marketResult] = await Promise.all([
+    // Run production cycle + market tick + event processing in parallel
+    const [productionResult, marketResult, eventResult] = await Promise.all([
       processProductionCycle({
         batchSize: 100,
         playerTimeoutMs: 5_000,
         signal: controller.signal,
       }),
       runMarketTick(),
+      processScheduledEvents().then((scheduled) =>
+        checkTriggeredEvents().then((triggered) => ({
+          scheduled,
+          triggered,
+        })),
+      ),
     ]);
 
     clearTimeout(safetyTimeout);
@@ -44,6 +54,7 @@ export async function POST(_req: NextRequest) {
       success: true,
       production: productionResult,
       market: marketResult,
+      events: eventResult,
       aborted: controller.signal.aborted,
     });
   } catch (error) {

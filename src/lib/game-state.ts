@@ -19,6 +19,11 @@ import {
 } from "@/lib/frame-response";
 import { type ModuleType } from "@/lib/utils";
 import marketEngine, { type TradeResult } from "@/lib/market-engine";
+import {
+  rollRandomEvent,
+  getActiveEvents,
+  autoParticipateInActiveEvents,
+} from "@/lib/event-engine";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -172,7 +177,7 @@ export class GameState {
   }
 
   /** RESULT: Button 1=Build More, 2=Home */
-  private handleResult(buttonIndex: number): FrameResponse {
+  private async handleResult(buttonIndex: number): Promise<FrameResponse> {
     return buttonIndex === 1 ? this.buildScreen() : this.homeScreen();
   }
 
@@ -183,6 +188,14 @@ export class GameState {
   /** Run production cycle — collect pending earnings for the player. */
   private async runProductionCycle(): Promise<FrameResponse> {
     const earnings = await gameEngine.collectEarnings(this.player.id);
+
+    // Roll for random events on production action
+    await rollRandomEvent("production", this.player.id).catch(() => {});
+    await autoParticipateInActiveEvents(
+      this.player.id,
+      "production",
+      earnings.collected,
+    ).catch(() => {});
 
     // Refresh state after collection
     const raw = await gameEngine.getOrCreatePlayer(this.player.fid);
@@ -204,6 +217,9 @@ export class GameState {
 
   /** Execute a module build and return a result screen. */
   private async executeBuild(moduleType: ModuleType): Promise<FrameResponse> {
+    // Roll for random events on shop/build action
+    await rollRandomEvent("shop_open", this.player.id).catch(() => {});
+
     const result = await gameEngine.buildModule(this.player.id, moduleType);
 
     if (!result.success) {
@@ -242,8 +258,17 @@ export class GameState {
   // Screen builders
   // -----------------------------------------------------------------------
 
-  homeScreen(): FrameResponse {
+  async homeScreen(): Promise<FrameResponse> {
     const s = this.player.state;
+
+    // Fetch active events for display
+    const activeEvents = await getActiveEvents(this.player.id).catch(
+      () => [] as Awaited<ReturnType<typeof getActiveEvents>>,
+    );
+    const eventBanner =
+      activeEvents.length > 0 ? activeEvents[0]!.type : "none";
+    const eventCount = activeEvents.length;
+
     return buildFrameResponse({
       screen: "home",
       fid: this.player.fid,
@@ -254,12 +279,18 @@ export class GameState {
         level: s.level,
         pending: s.pendingEarnings,
         name: this.player.username,
+        eventBanner,
+        eventCount,
       },
     });
   }
 
-  colonyScreen(): FrameResponse {
+  async colonyScreen(): Promise<FrameResponse> {
     const s = this.player.state;
+
+    // Roll for random events on colony view
+    await rollRandomEvent("colony_view", this.player.id).catch(() => {});
+
     // Encode module summary for image generation
     const moduleSummary = summarizeModules(s.modules);
     return buildFrameResponse({
@@ -275,7 +306,10 @@ export class GameState {
     });
   }
 
-  buildScreen(): FrameResponse {
+  async buildScreen(): Promise<FrameResponse> {
+    // Roll for random events on shop view
+    await rollRandomEvent("shop_open", this.player.id).catch(() => {});
+
     const s = this.player.state;
     const solarCost = gameEngine.calculateModuleCost(
       "SOLAR_PANEL",

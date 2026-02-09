@@ -49,8 +49,11 @@ export function generateHomeImage(params: URLSearchParams): ImageResponse {
   const pending = params.get("pending") ?? "0";
   const collected = params.get("collected") ?? "0";
   const name = params.get("name") ?? "Commander";
+  const eventBanner = params.get("eventBanner") ?? "none";
+  const eventCount = Number(params.get("eventCount") ?? "0");
 
   const hasCollected = Number(collected) > 0;
+  const hasEvent = eventBanner !== "none" && eventCount > 0;
 
   return new ImageResponse(
     <div style={{ ...baseStyle, background: gradients.home }}>
@@ -137,6 +140,27 @@ export function generateHomeImage(params: URLSearchParams): ImageResponse {
           />
         )}
       </div>
+
+      {/* Active event banner */}
+      {hasEvent && (
+        <div
+          style={{
+            display: "flex",
+            marginTop: 8,
+            padding: "8px 16px",
+            background: "rgba(250,204,21,0.15)",
+            border: "1px solid rgba(250,204,21,0.4)",
+            borderRadius: 10,
+            fontSize: 18,
+            color: "#facc15",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          🎉 {eventCount} active event{eventCount > 1 ? "s" : ""}:{" "}
+          {formatEventName(eventBanner)}
+        </div>
+      )}
 
       {/* Footer */}
       <div
@@ -970,4 +994,21 @@ function StatBox({
       </div>
     </div>
   );
+}
+
+/** Human-readable event type name for the banner. */
+function formatEventName(eventType: string): string {
+  const names: Record<string, string> = {
+    PRODUCTION_RUSH: "Production Rush",
+    EFFICIENCY_CHALLENGE: "Efficiency Challenge",
+    MARKET_MANIPULATION: "Market Manipulation",
+    WEEKLY_BURN: "Weekly Burn",
+    SOLAR_FLARE: "Solar Flare",
+    METEOR_SHOWER: "Meteor Shower",
+    EQUIPMENT_SURPLUS: "Equipment Surplus",
+    EARTH_CONTRACT: "Earth Contract",
+    ALLIANCE_TOURNAMENT: "Alliance Tournament",
+    RESEARCH_BREAKTHROUGH: "Research Breakthrough",
+  };
+  return names[eventType] ?? eventType.replace(/_/g, " ").toLowerCase();
 }

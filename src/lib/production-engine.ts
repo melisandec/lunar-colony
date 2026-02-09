@@ -15,6 +15,12 @@
 
 import prisma from "@/lib/database";
 import type { ModuleType, Tier } from "@/lib/utils";
+import {
+  getPlayerEventModifiers,
+  getModifier,
+  autoParticipateInActiveEvents,
+  type ModifierSet,
+} from "@/lib/event-engine";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -115,6 +121,9 @@ const AGING_DECAY_PER_CYCLE = 0.01;
 export async function calculatePlayerProduction(
   playerId: string,
 ): Promise<ProductionResult> {
+  // Fetch event modifiers for this player
+  const eventMods = await getPlayerEventModifiers(playerId);
+
   // Single query: active modules LEFT JOIN assigned crew
   const rows = await prisma.$queryRaw<ModuleProductionRow[]>`
     SELECT
@@ -144,7 +153,7 @@ export async function calculatePlayerProduction(
   const moduleResults: ModuleResult[] = [];
 
   for (const row of rows) {
-    const result = calculateModuleOutput(row);
+    const result = calculateModuleOutput(row, eventMods);
     totalLunar += result.output;
     totalEfficiency += Number(row.efficiency);
     moduleResults.push(result);
@@ -167,8 +176,12 @@ export async function calculatePlayerProduction(
 
 /**
  * Pure calculation for a single module's output.
+ * Takes optional event modifiers to apply bonuses/penalties.
  */
-function calculateModuleOutput(row: ModuleProductionRow): ModuleResult {
+function calculateModuleOutput(
+  row: ModuleProductionRow,
+  eventMods?: ModifierSet,
+): ModuleResult {
   const tier = row.tier as Tier;
   const moduleType = row.moduleType as ModuleType;
 
@@ -214,9 +227,17 @@ function calculateModuleOutput(row: ModuleProductionRow): ModuleResult {
     (base + crewBonus - agingPenalty) * efficiencyMult,
   );
 
+  // Apply event modifiers: global production + module-type-specific
+  let eventMultiplier = 1.0;
+  if (eventMods) {
+    eventMultiplier *= getModifier(eventMods, "GLOBAL_PRODUCTION");
+    eventMultiplier *= getModifier(eventMods, `${moduleType}_OUTPUT`);
+  }
+  const finalOutput = output * eventMultiplier;
+
   return {
     moduleId: row.moduleId,
-    output,
+    output: finalOutput,
     breakdown: {
       base,
       crewBonus,
@@ -472,7 +493,18 @@ async function processSinglePlayer(
   if (production.totalLunar <= 0) return null;
 
   const credited = await creditProduction(playerId, date, production);
-  return credited ? production.totalLunar : null;
+  if (!credited) return null;
+
+  // Record participation in any active production-related events
+  await autoParticipateInActiveEvents(
+    playerId,
+    "production",
+    production.totalLunar,
+  ).catch(() => {
+    // Non-critical — don't fail production for event tracking
+  });
+
+  return production.totalLunar;
 }
 
 // ---------------------------------------------------------------------------

@@ -88,6 +88,19 @@ enum LeaderboardPeriod {
   ALLTIME
 }
 
+enum EventStatus {
+  PENDING     // Warning period, not yet active
+  ACTIVE      // Currently running
+  COMPLETED   // Ended, rewards distributed
+  CANCELLED   // Aborted early
+}
+
+enum EventCategory {
+  SCHEDULED   // Cron-triggered recurring events
+  RANDOM      // Probability-based on player actions
+  TRIGGERED   // Player/alliance milestone triggered
+}
+
 // ---------------------------------------------------------------------------
 // Player — core identity, heavily denormalized for Frame reads
 // ---------------------------------------------------------------------------
@@ -124,13 +137,14 @@ model Player {
   updatedAt       DateTime  @updatedAt
 
   // --- Relations ---
-  modules         Module[]
-  crew            CrewMember[]
-  resources       PlayerResource[]
-  transactions    Transaction[]
-  achievements    PlayerAchievement[]
-  productionLogs  ProductionLog[]
-  allianceMember  AllianceMember?
+  modules             Module[]
+  crew                CrewMember[]
+  resources           PlayerResource[]
+  transactions        Transaction[]
+  achievements        PlayerAchievement[]
+  productionLogs      ProductionLog[]
+  allianceMember      AllianceMember?
+  eventParticipants   EventParticipant[]
 
   // --- Indexes ---
   @@index([fid])
@@ -406,6 +420,99 @@ model ProductionLog {
   @@unique([playerId, date, resource])                  // One row per player/day/resource
   @@index([date])                                       // Prune old logs
   @@index([playerId, date(sort: Desc)])                 // Player history
+}
+
+// ---------------------------------------------------------------------------
+// ActiveEvent — live game events (scheduled, random, player-triggered)
+// ---------------------------------------------------------------------------
+
+model ActiveEvent {
+  id              String        @id @default(cuid())
+  type            String                                // e.g. SOLAR_FLARE, PRODUCTION_RUSH
+  category        EventCategory
+  status          EventStatus   @default(ACTIVE)
+  name            String                                // Display name
+  description     String
+  icon            String        @default("🎮")
+
+  // --- Timing ---
+  startTime       DateTime
+  endTime         DateTime
+  warningTime     DateTime?                             // Optional warning before start
+
+  // --- Effect modifiers ---
+  modifiers       Json                                  // Record<string, number> — e.g. {SOLAR_PANEL_OUTPUT: 2.0}
+  mechanics       Json?                                 // Extra rules: {requiresPreparation, emergencyPurchaseAvailable, ...}
+  config          Json?                                 // Arbitrary config for this event instance
+
+  // --- Scope ---
+  isGlobal        Boolean       @default(true)          // Affects all players vs specific ones
+  targetPlayerIds Json?                                 // string[] for non-global events
+
+  // --- Tracking ---
+  participantCount Int          @default(0)
+  totalRewardsDistributed Decimal @default(0) @db.Decimal(20, 4)
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  participants    EventParticipant[]
+  rewards         EventReward[]
+
+  @@index([status, startTime])
+  @@index([status, endTime])
+  @@index([type])
+  @@index([category, status])
+}
+
+// ---------------------------------------------------------------------------
+// EventParticipant — tracks player engagement in events
+// ---------------------------------------------------------------------------
+
+model EventParticipant {
+  id              String      @id @default(cuid())
+  eventId         String
+  event           ActiveEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  playerId        String
+  player          Player      @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  // --- Participation data ---
+  score           Decimal     @default(0) @db.Decimal(20, 4)   // Event-specific score
+  actions         Int         @default(0)                       // Number of qualifying actions
+  firstActionAt   DateTime?
+  lastActionAt    DateTime?
+  metadata        Json?                                         // Event-specific tracking data
+
+  // --- Rewards ---
+  rewardClaimed   Boolean     @default(false)
+  rewardAmount    Decimal     @default(0) @db.Decimal(20, 4)
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([eventId, playerId])                                 // One entry per player per event
+  @@index([playerId, eventId])
+  @@index([eventId, score(sort: Desc)])                         // Leaderboard within event
+}
+
+// ---------------------------------------------------------------------------
+// EventReward — distributed rewards archive
+// ---------------------------------------------------------------------------
+
+model EventReward {
+  id              String      @id @default(cuid())
+  eventId         String
+  event           ActiveEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  playerId        String
+  resource        ResourceType @default(LUNAR)
+  amount          Decimal     @db.Decimal(20, 4)
+  reason          String                                        // e.g. "Top 10 finisher", "Participation"
+  rank            Int?                                          // Placement in event leaderboard
+
+  distributedAt   DateTime    @default(now())
+
+  @@index([eventId])
+  @@index([playerId, distributedAt(sort: Desc)])
 }
 
 // ---------------------------------------------------------------------------
