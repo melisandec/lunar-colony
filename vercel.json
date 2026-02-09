@@ -1,19 +1,11 @@
 {
-  "buildCommand": "prisma generate && prisma migrate deploy && next build",
+  "buildCommand": "prisma generate && next build",
   "installCommand": "npm ci",
   "framework": "nextjs",
   "crons": [
     {
-      "path": "/api/cron/daily-production",
+      "path": "/api/cron",
       "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/cron/market-update",
-      "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/api/cron/event-check",
-      "schedule": "0 * * * *"
     }
   ],
   "headers": [

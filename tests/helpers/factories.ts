@@ -5,7 +5,7 @@
  * by the engine functions. No Prisma dependency — these are pure data builders.
  */
 
-import type { ModuleType, Tier, ResourceType } from "@/lib/utils";
+import type { ModuleType, ResourceType } from "@/lib/utils";
 import type { ModuleProductionRow } from "@/lib/production-engine";
 import type { ModifierSet } from "@/lib/event-engine";
 
