@@ -27,7 +27,7 @@ export default async function PlayerProfile({
         <div className="mx-auto max-w-2xl px-4 py-12">
           {/* Header */}
           <div className="mb-8 text-center">
-            <h1 className="text-4xl font-bold">🌙 {state.colonyName}</h1>
+            <h1 className="text-4xl font-bold">🌙 {state.playerName}</h1>
             <p className="mt-2 text-lg text-indigo-300">
               Player: {player.username} (FID: {player.fid})
             </p>
@@ -74,7 +74,7 @@ export default async function PlayerProfile({
                       </span>
                     </div>
                     <div className="text-sm text-emerald-400">
-                      +{mod.productionRate}/tick
+                      +{mod.baseOutput}/tick
                     </div>
                   </div>
                 ))}

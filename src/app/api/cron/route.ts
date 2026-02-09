@@ -6,9 +6,8 @@ import { GAME_CONSTANTS } from "@/lib/utils";
  * POST /api/cron
  * Protected endpoint for scheduled game ticks.
  *
- * This processes all active colonies, calculating resource production
- * and updating balances. Designed to be called by Vercel Cron or
- * an external scheduler.
+ * Processes all active players, calculating per-module resource production
+ * and crediting $LUNAR balances. Designed for Vercel Cron / external scheduler.
  *
  * Protected by CRON_SECRET in middleware.ts.
  *
@@ -19,41 +18,50 @@ export async function POST(_req: NextRequest) {
   const startTime = Date.now();
 
   try {
-    // Get all active colonies with their modules
-    const colonies = await prisma.colony.findMany({
+    // Players that have at least one active, non-deleted module
+    const players = await prisma.player.findMany({
       where: {
-        modules: {
-          some: { isActive: true },
-        },
+        deletedAt: null,
+        modules: { some: { isActive: true, deletedAt: null } },
       },
       include: {
-        player: { select: { id: true, fid: true } },
         modules: {
-          where: { isActive: true },
-          select: { productionRate: true },
+          where: { isActive: true, deletedAt: null },
+          select: {
+            id: true,
+            baseOutput: true,
+            bonusOutput: true,
+            efficiency: true,
+            lastCollectedAt: true,
+          },
         },
       },
     });
 
     let processedCount = 0;
     let totalLunarProduced = 0;
+    const now = new Date();
 
     // Process in batches for serverless optimization
     const BATCH_SIZE = 50;
 
-    for (let i = 0; i < colonies.length; i += BATCH_SIZE) {
-      const batch = colonies.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < players.length; i += BATCH_SIZE) {
+      const batch = players.slice(i, i + BATCH_SIZE);
 
-      const updates = batch.map((colony) => {
-        const productionRate = colony.modules.reduce(
-          (sum, m) => sum + m.productionRate,
-          0,
-        );
+      const updates = batch.map((player) => {
+        // Sum earnings across all active modules since their individual lastCollectedAt
+        let earnings = 0;
 
-        // Calculate ticks since last update
-        const msElapsed = Date.now() - colony.lastTick.getTime();
-        const ticks = msElapsed / GAME_CONSTANTS.TICK_INTERVAL_MS;
-        const earnings = Math.floor(ticks * productionRate);
+        for (const m of player.modules) {
+          const base = Number(m.baseOutput);
+          const bonus = Number(m.bonusOutput);
+          const eff = Number(m.efficiency) / 100;
+          const rate = (base + bonus) * eff;
+
+          const msElapsed = now.getTime() - m.lastCollectedAt.getTime();
+          const ticks = msElapsed / GAME_CONSTANTS.TICK_INTERVAL_MS;
+          earnings += Math.floor(ticks * rate);
+        }
 
         if (earnings <= 0) return null;
 
@@ -62,17 +70,24 @@ export async function POST(_req: NextRequest) {
 
         return prisma.$transaction([
           prisma.player.update({
-            where: { id: colony.player.id },
-            data: { lunarBalance: { increment: earnings } },
+            where: { id: player.id },
+            data: {
+              lunarBalance: { increment: earnings },
+              totalEarnings: { increment: earnings },
+              lastActive: now,
+              version: { increment: 1 },
+            },
           }),
-          prisma.colony.update({
-            where: { id: colony.id },
-            data: { lastTick: new Date() },
-          }),
+          // Reset lastCollectedAt on processed modules
+          ...player.modules.map((m) =>
+            prisma.module.update({
+              where: { id: m.id },
+              data: { lastCollectedAt: now, ageInCycles: { increment: 1 } },
+            }),
+          ),
         ]);
       });
 
-      // Execute batch (filter nulls)
       await Promise.all(updates.filter(Boolean));
     }
 
@@ -81,7 +96,7 @@ export async function POST(_req: NextRequest) {
     return NextResponse.json({
       success: true,
       processed: processedCount,
-      totalColonies: colonies.length,
+      totalPlayers: players.length,
       totalLunarProduced,
       durationMs: duration,
     });

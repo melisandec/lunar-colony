@@ -3,46 +3,60 @@
  *
  * Handles all game logic: colony management, resource production,
  * module building, and $LUNAR token economy.
+ *
+ * Schema notes:
+ *   - Player directly owns Module[] (no Colony intermediary)
+ *   - lunarBalance is Decimal(20,4) — use .toNumber() for arithmetic
+ *   - ModuleType is a Prisma enum (SOLAR_PANEL, MINING_RIG, …)
+ *   - Module.baseOutput is Decimal(10,4), Module.lastCollectedAt tracks ticks
  */
 
 import prisma from "@/lib/database";
 import { GAME_CONSTANTS, type ModuleType } from "@/lib/utils";
+import type { Prisma } from "@prisma/client";
 
 // --- Types ---
 
 export interface ColonyState {
   playerId: string;
-  colonyName: string;
+  playerName: string;
   level: number;
   lunarBalance: number;
   modules: ModuleState[];
   productionRate: number;
-  lastTick: Date;
+  lastCollectedAt: Date;
   pendingEarnings: number;
 }
 
 export interface ModuleState {
   id: string;
   type: ModuleType;
+  tier: string;
   level: number;
-  position: number;
-  productionRate: number;
+  coordinates: { x: number; y: number };
+  baseOutput: number;
+  bonusOutput: number;
+  efficiency: number;
   isActive: boolean;
+}
+
+// Helper to convert Prisma Decimal to number safely
+function d(val: Prisma.Decimal | number | null | undefined): number {
+  if (val == null) return 0;
+  return typeof val === "number" ? val : Number(val);
 }
 
 // --- Player Management ---
 
 /**
  * Get or create a player by their Farcaster FID.
- * New players start with a default colony and starting $LUNAR.
+ * New players start with a free Solar Panel and starting $LUNAR.
  */
 export async function getOrCreatePlayer(fid: number, username?: string) {
   let player = await prisma.player.findUnique({
-    where: { fid },
+    where: { fid, deletedAt: null },
     include: {
-      colony: {
-        include: { modules: true },
-      },
+      modules: { where: { deletedAt: null } },
     },
   });
 
@@ -52,27 +66,29 @@ export async function getOrCreatePlayer(fid: number, username?: string) {
         fid,
         username: username || `player_${fid}`,
         lunarBalance: GAME_CONSTANTS.STARTING_LUNAR,
-        colony: {
+        moduleCount: 1,
+        // Start with a free solar panel
+        modules: {
           create: {
-            name: `Colony #${fid}`,
+            type: "SOLAR_PANEL",
+            tier: "COMMON",
             level: 1,
-            // Start with a free solar panel
-            modules: {
-              create: {
-                type: "solar_panel",
-                level: 1,
-                position: 0,
-                productionRate: GAME_CONSTANTS.BASE_PRODUCTION_RATE,
-                isActive: true,
-              },
-            },
+            coordinates: { x: 0, y: 0 },
+            baseOutput: GAME_CONSTANTS.BASE_PRODUCTION_RATE,
+            efficiency: 100,
+          },
+        },
+        // Initialize LUNAR resource balance
+        resources: {
+          create: {
+            type: "LUNAR",
+            amount: GAME_CONSTANTS.STARTING_LUNAR,
+            totalMined: GAME_CONSTANTS.STARTING_LUNAR,
           },
         },
       },
       include: {
-        colony: {
-          include: { modules: true },
-        },
+        modules: { where: { deletedAt: null } },
       },
     });
   }
@@ -83,43 +99,53 @@ export async function getOrCreatePlayer(fid: number, username?: string) {
 // --- Colony State ---
 
 /**
- * Calculate the full colony state including pending earnings since last tick.
+ * Calculate the full colony state including pending earnings since last collection.
  */
 export function calculateColonyState(
   player: Awaited<ReturnType<typeof getOrCreatePlayer>>,
 ): ColonyState {
-  const colony = player.colony;
-  if (!colony) {
-    throw new Error(`Player ${player.fid} has no colony`);
-  }
-
-  const modules: ModuleState[] = colony.modules.map((m) => ({
+  const modules: ModuleState[] = player.modules.map((m) => ({
     id: m.id,
     type: m.type as ModuleType,
+    tier: m.tier,
     level: m.level,
-    position: m.position,
-    productionRate: m.productionRate,
+    coordinates: m.coordinates as { x: number; y: number },
+    baseOutput: d(m.baseOutput),
+    bonusOutput: d(m.bonusOutput),
+    efficiency: d(m.efficiency),
     isActive: m.isActive,
   }));
 
   const totalProductionRate = modules
     .filter((m) => m.isActive)
-    .reduce((sum, m) => sum + m.productionRate, 0);
+    .reduce((sum, m) => {
+      const effective = (m.baseOutput + m.bonusOutput) * (m.efficiency / 100);
+      return sum + effective;
+    }, 0);
 
-  // Calculate earnings since last tick
+  // Find the earliest lastCollectedAt across active modules
+  const activeModules = player.modules.filter((m) => m.isActive);
+  const oldestCollection =
+    activeModules.length > 0
+      ? new Date(
+          Math.min(...activeModules.map((m) => m.lastCollectedAt.getTime())),
+        )
+      : new Date();
+
+  // Calculate earnings since last collection
   const now = new Date();
-  const msElapsed = now.getTime() - colony.lastTick.getTime();
+  const msElapsed = now.getTime() - oldestCollection.getTime();
   const ticksElapsed = msElapsed / GAME_CONSTANTS.TICK_INTERVAL_MS;
   const pendingEarnings = Math.floor(ticksElapsed * totalProductionRate);
 
   return {
     playerId: player.id,
-    colonyName: colony.name,
-    level: colony.level,
-    lunarBalance: player.lunarBalance,
+    playerName: player.username || `Colony #${player.fid}`,
+    level: player.level,
+    lunarBalance: d(player.lunarBalance),
     modules,
-    productionRate: totalProductionRate,
-    lastTick: colony.lastTick,
+    productionRate: Math.floor(totalProductionRate),
+    lastCollectedAt: oldestCollection,
     pendingEarnings,
   };
 }
@@ -127,21 +153,21 @@ export function calculateColonyState(
 // --- Module Management ---
 
 /**
- * Calculate cost for building a new module based on how many the player has.
+ * Calculate cost for building a new module based on blueprint & player's count.
  */
 export function calculateModuleCost(
   moduleType: ModuleType,
   existingModuleCount: number,
 ): number {
   const baseCosts: Record<ModuleType, number> = {
-    solar_panel: 100,
-    mining_rig: 250,
-    habitat: 200,
-    research_lab: 500,
-    water_extractor: 300,
-    oxygen_generator: 350,
-    storage_depot: 150,
-    launch_pad: 1000,
+    SOLAR_PANEL: 100,
+    MINING_RIG: 250,
+    HABITAT: 200,
+    RESEARCH_LAB: 500,
+    WATER_EXTRACTOR: 300,
+    OXYGEN_GENERATOR: 350,
+    STORAGE_DEPOT: 150,
+    LAUNCH_PAD: 1000,
   };
 
   const baseCost = baseCosts[moduleType];
@@ -160,54 +186,95 @@ export async function buildModule(
 ): Promise<{ success: boolean; error?: string; module?: ModuleState }> {
   const player = await prisma.player.findUnique({
     where: { id: playerId },
-    include: { colony: { include: { modules: true } } },
+    include: { modules: { where: { deletedAt: null } } },
   });
 
-  if (!player?.colony) {
-    return { success: false, error: "Colony not found" };
+  if (!player) {
+    return { success: false, error: "Player not found" };
   }
 
-  const moduleCount = player.colony.modules.length;
+  const moduleCount = player.modules.length;
 
   if (moduleCount >= GAME_CONSTANTS.MAX_MODULES) {
     return { success: false, error: "Colony is full! Max modules reached." };
   }
 
   const cost = calculateModuleCost(moduleType, moduleCount);
+  const balance = d(player.lunarBalance);
 
-  if (player.lunarBalance < cost) {
+  if (balance < cost) {
     return {
       success: false,
-      error: `Not enough $LUNAR. Need ${cost}, have ${player.lunarBalance}.`,
+      error: `Not enough $LUNAR. Need ${cost}, have ${Math.floor(balance)}.`,
     };
   }
 
-  // Production rate based on module type
+  // Production rate based on COMMON tier blueprint
   const productionRates: Record<ModuleType, number> = {
-    solar_panel: 10,
-    mining_rig: 25,
-    habitat: 5,
-    research_lab: 15,
-    water_extractor: 20,
-    oxygen_generator: 18,
-    storage_depot: 8,
-    launch_pad: 50,
+    SOLAR_PANEL: 10,
+    MINING_RIG: 25,
+    HABITAT: 5,
+    RESEARCH_LAB: 15,
+    WATER_EXTRACTOR: 20,
+    OXYGEN_GENERATOR: 18,
+    STORAGE_DEPOT: 8,
+    LAUNCH_PAD: 50,
   };
 
-  // Transactional: deduct cost and create module
+  // Find next open grid position (simple sequential)
+  const usedPositions = new Set(
+    player.modules.map((m) => JSON.stringify(m.coordinates)),
+  );
+  let coords = { x: 0, y: 0 };
+  for (let y = 0; y < 10; y++) {
+    for (let x = 0; x < 10; x++) {
+      if (!usedPositions.has(JSON.stringify({ x, y }))) {
+        coords = { x, y };
+        break;
+      }
+    }
+    if (!usedPositions.has(JSON.stringify(coords))) break;
+  }
+
+  // Transactional: deduct cost, create module, update counters, log transaction
+  const newBalance = balance - cost;
+
   const [, newModule] = await prisma.$transaction([
     prisma.player.update({
-      where: { id: playerId },
-      data: { lunarBalance: { decrement: cost } },
+      where: { id: playerId, version: player.version }, // Optimistic lock
+      data: {
+        lunarBalance: { decrement: cost },
+        moduleCount: { increment: 1 },
+        version: { increment: 1 },
+      },
     }),
     prisma.module.create({
       data: {
-        colonyId: player.colony.id,
+        playerId,
         type: moduleType,
+        tier: "COMMON",
         level: 1,
-        position: moduleCount,
-        productionRate: productionRates[moduleType],
-        isActive: true,
+        coordinates: coords,
+        baseOutput: productionRates[moduleType],
+        efficiency: 100,
+      },
+    }),
+    prisma.transaction.create({
+      data: {
+        playerId,
+        type: "BUILD",
+        resource: "LUNAR",
+        amount: -cost,
+        balanceAfter: newBalance,
+        description: `Built ${moduleType} (COMMON)`,
+        metadata: { moduleType, cost, coordinates: coords },
+      },
+    }),
+    prisma.gameEvent.create({
+      data: {
+        playerId,
+        type: "build",
+        data: { moduleType, tier: "COMMON", cost, coordinates: coords },
       },
     }),
   ]);
@@ -217,9 +284,12 @@ export async function buildModule(
     module: {
       id: newModule.id,
       type: newModule.type as ModuleType,
+      tier: newModule.tier,
       level: newModule.level,
-      position: newModule.position,
-      productionRate: newModule.productionRate,
+      coordinates: newModule.coordinates as { x: number; y: number },
+      baseOutput: d(newModule.baseOutput),
+      bonusOutput: d(newModule.bonusOutput),
+      efficiency: d(newModule.efficiency),
       isActive: newModule.isActive,
     },
   };
@@ -237,33 +307,54 @@ export async function collectEarnings(playerId: string): Promise<{
 }> {
   const player = await prisma.player.findUnique({
     where: { id: playerId },
-    include: { colony: { include: { modules: true } } },
+    include: { modules: { where: { deletedAt: null, isActive: true } } },
   });
 
-  if (!player?.colony) {
+  if (!player) {
     return { collected: 0, newBalance: 0 };
   }
 
   const state = calculateColonyState(player);
 
   if (state.pendingEarnings <= 0) {
-    return { collected: 0, newBalance: player.lunarBalance };
+    return { collected: 0, newBalance: d(player.lunarBalance) };
   }
 
-  const updated = await prisma.$transaction([
+  const newBalance = d(player.lunarBalance) + state.pendingEarnings;
+  const now = new Date();
+
+  const [updatedPlayer] = await prisma.$transaction([
     prisma.player.update({
-      where: { id: playerId },
-      data: { lunarBalance: { increment: state.pendingEarnings } },
+      where: { id: playerId, version: player.version },
+      data: {
+        lunarBalance: { increment: state.pendingEarnings },
+        totalEarnings: { increment: state.pendingEarnings },
+        lastActive: now,
+        version: { increment: 1 },
+      },
     }),
-    prisma.colony.update({
-      where: { id: player.colony.id },
-      data: { lastTick: new Date() },
+    // Reset lastCollectedAt on all active modules
+    ...player.modules.map((m) =>
+      prisma.module.update({
+        where: { id: m.id },
+        data: { lastCollectedAt: now, ageInCycles: { increment: 1 } },
+      }),
+    ),
+    prisma.transaction.create({
+      data: {
+        playerId,
+        type: "PRODUCTION",
+        resource: "LUNAR",
+        amount: state.pendingEarnings,
+        balanceAfter: newBalance,
+        description: "Collected production earnings",
+      },
     }),
   ]);
 
   return {
     collected: state.pendingEarnings,
-    newBalance: updated[0].lunarBalance,
+    newBalance: d(updatedPlayer.lunarBalance),
   };
 }
 

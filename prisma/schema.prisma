@@ -1,5 +1,16 @@
-// Prisma Schema for Lunar Colony Tycoon
+// =============================================================================
+// Lunar Colony Tycoon — Complete Prisma Schema
 // Database: PostgreSQL (Neon.tech free tier)
+//
+// Design patterns:
+//   1. Denormalized computed fields on Player for Frame-speed reads
+//   2. Composite indexes for all hot-path queries
+//   3. Soft deletes (deletedAt) on player-owned data
+//   4. Schema version field on mutable game entities
+//   5. Time-partitioned log tables (ProductionLog, TransactionLog)
+//   6. GameConfig table for live balance tuning without deploys
+//   7. Enums for all fixed sets
+// =============================================================================
 
 generator client {
   provider = "prisma-client-js"
@@ -9,90 +20,431 @@ datasource db {
   provider = "postgresql"
 }
 
-// --- Player ---
-// Linked to a Farcaster account via FID
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum ModuleType {
+  SOLAR_PANEL
+  MINING_RIG
+  HABITAT
+  RESEARCH_LAB
+  WATER_EXTRACTOR
+  OXYGEN_GENERATOR
+  STORAGE_DEPOT
+  LAUNCH_PAD
+}
+
+enum ResourceType {
+  LUNAR       // Primary currency
+  REGOLITH    // Raw building material
+  WATER_ICE   // Life-support & fuel
+  HELIUM3     // Advanced energy
+  RARE_EARTH  // Tech components
+}
+
+enum Tier {
+  COMMON
+  UNCOMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+enum TransactionType {
+  PRODUCTION
+  BUILD
+  UPGRADE
+  TRADE
+  DAILY_REWARD
+  ACHIEVEMENT
+  ALLIANCE_DIVIDEND
+  REFUND
+}
+
+enum AchievementCategory {
+  BUILDING
+  PRODUCTION
+  SOCIAL
+  EXPLORATION
+  MILESTONE
+}
+
+enum EventSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AllianceRole {
+  LEADER
+  OFFICER
+  MEMBER
+}
+
+enum LeaderboardPeriod {
+  DAILY
+  WEEKLY
+  ALLTIME
+}
+
+// ---------------------------------------------------------------------------
+// Player — core identity, heavily denormalized for Frame reads
+// ---------------------------------------------------------------------------
 
 model Player {
-  id           String   @id @default(cuid())
-  fid          Int      @unique // Farcaster ID
-  username     String
-  lunarBalance Int      @default(500) // In-game $LUNAR token balance
-  totalEarned  Int      @default(0) // Lifetime earnings for leaderboard
-  colony       Colony?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String    @id @default(cuid())
+  fid             Int       @unique                    // Farcaster ID
+  walletAddress   String?                              // Future Base wallet
+  username        String?
+  pfpUrl          String?
 
+  // --- Denormalized game state (updated transactionally) ---
+  lunarBalance    Decimal   @default(0)  @db.Decimal(20, 4)
+  level           Int       @default(1)
+  xp              Decimal   @default(0)  @db.Decimal(20, 2)
+  lastActive      DateTime  @default(now())
+  dailyStreak     Int       @default(0)
+  lastDailyAt     DateTime?
+
+  // --- Performance counters (avoid COUNT queries in Frames) ---
+  totalEarnings   Decimal   @default(0)  @db.Decimal(20, 4)
+  moduleCount     Int       @default(0)
+  crewCount       Int       @default(0)
+  efficiency      Decimal   @default(100) @db.Decimal(5, 2) // 0-100 %
+
+  // --- Soft delete ---
+  deletedAt       DateTime?
+
+  // --- Versioning for optimistic concurrency ---
+  version         Int       @default(1)
+
+  // --- Timestamps ---
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // --- Relations ---
+  modules         Module[]
+  crew            CrewMember[]
+  resources       PlayerResource[]
+  transactions    Transaction[]
+  achievements    PlayerAchievement[]
+  productionLogs  ProductionLog[]
+  allianceMember  AllianceMember?
+
+  // --- Indexes ---
   @@index([fid])
-  @@index([lunarBalance(sort: Desc)]) // Leaderboard query
-  @@index([totalEarned(sort: Desc)])
+  @@index([level])
+  @@index([lunarBalance(sort: Desc)])       // Leaderboard
+  @@index([totalEarnings(sort: Desc)])      // Leaderboard
+  @@index([lastActive])                     // Stale-player cleanup
+  @@index([deletedAt])                      // Soft-delete filter
 }
 
-// --- Colony ---
-// Each player has one lunar colony
-
-model Colony {
-  id        String   @id @default(cuid())
-  name      String   @default("New Colony")
-  level     Int      @default(1)
-  lastTick  DateTime @default(now()) // Last resource collection timestamp
-  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  playerId  String   @unique
-  modules   Module[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([lastTick]) // Cron job queries colonies by tick time
-}
-
-// --- Module ---
-// Buildings/structures in a colony that produce resources
+// ---------------------------------------------------------------------------
+// Module — buildings in a player's colony
+// ---------------------------------------------------------------------------
 
 model Module {
-  id             String   @id @default(cuid())
-  type           String // solar_panel, mining_rig, habitat, etc.
-  level          Int      @default(1)
-  position       Int // Grid position in the colony
-  productionRate Int      @default(10) // $LUNAR per tick
-  isActive       Boolean  @default(true)
-  colony         Colony   @relation(fields: [colonyId], references: [id], onDelete: Cascade)
-  colonyId       String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id              String      @id @default(cuid())
+  playerId        String
+  player          Player      @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
-  @@index([colonyId])
+  // --- Properties ---
+  type            ModuleType
+  tier            Tier        @default(COMMON)
+  level           Int         @default(1)
+  efficiency      Decimal     @default(100) @db.Decimal(5, 2)
+  coordinates     Json        // { x: number, y: number }
+
+  // --- Production ---
+  baseOutput      Decimal     @db.Decimal(10, 4)       // $LUNAR per cycle
+  bonusOutput     Decimal     @default(0) @db.Decimal(10, 4)
+  lastCollectedAt DateTime    @default(now())
+  isActive        Boolean     @default(true)
+
+  // --- Aging / diminishing returns ---
+  installedAt     DateTime    @default(now())
+  ageInCycles     Int         @default(0)
+
+  // --- Soft delete & versioning ---
+  deletedAt       DateTime?
+  version         Int         @default(1)
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // --- Indexes ---
+  @@index([playerId, isActive])             // "my active modules"
+  @@index([playerId, type])                 // "how many rigs do I have?"
+  @@index([playerId, deletedAt])            // soft-delete scoped
+  @@index([isActive, lastCollectedAt])      // cron tick query
+}
+
+// ---------------------------------------------------------------------------
+// Crew — specialists that boost module output
+// ---------------------------------------------------------------------------
+
+model CrewMember {
+  id              String    @id @default(cuid())
+  playerId        String
+  player          Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  name            String
+  role            String    // engineer, geologist, pilot, scientist, medic
+  level           Int       @default(1)
+  xp              Decimal   @default(0) @db.Decimal(10, 2)
+  specialty       ModuleType?                          // Bonus to this module type
+
+  // --- Stat modifiers (percentage, e.g. 15 = +15 %) ---
+  efficiencyBonus Decimal   @default(0) @db.Decimal(5, 2)
+  outputBonus     Decimal   @default(0) @db.Decimal(5, 2)
+
+  assignedModuleId String?  // nullable = unassigned
+  isActive        Boolean   @default(true)
+
+  deletedAt       DateTime?
+  version         Int       @default(1)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([playerId, isActive])
+  @@index([playerId, specialty])
+}
+
+// ---------------------------------------------------------------------------
+// PlayerResource — per-player balances for every resource type
+// ---------------------------------------------------------------------------
+
+model PlayerResource {
+  id          String       @id @default(cuid())
+  playerId    String
+  player      Player       @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  type        ResourceType
+  amount      Decimal      @default(0) @db.Decimal(20, 4)
+  totalMined  Decimal      @default(0) @db.Decimal(20, 4)
+
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([playerId, type])                // One row per resource per player
+  @@index([playerId])
+}
+
+// ---------------------------------------------------------------------------
+// ResourcePrice — live market prices for each resource
+// ---------------------------------------------------------------------------
+
+model ResourcePrice {
+  id              String       @id @default(cuid())
+  type            ResourceType @unique
+  basePrice       Decimal      @db.Decimal(10, 4)
+  currentPrice    Decimal      @db.Decimal(10, 4)
+  priceChange24h  Decimal      @default(0) @db.Decimal(8, 4)
+  supply          Decimal      @default(0) @db.Decimal(20, 4)
+  demand          Decimal      @default(0) @db.Decimal(20, 4)
+  lastUpdatedAt   DateTime     @default(now())
+
   @@index([type])
 }
 
-// --- GameEvent ---
-// Audit log of significant game events (builds, collections, etc.)
+// ---------------------------------------------------------------------------
+// Transaction — immutable ledger of all economic events
+// ---------------------------------------------------------------------------
+
+model Transaction {
+  id          String          @id @default(cuid())
+  playerId    String
+  player      Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  type        TransactionType
+  resource    ResourceType    @default(LUNAR)
+  amount      Decimal         @db.Decimal(20, 4)       // Positive = credit, negative = debit
+  balanceAfter Decimal        @db.Decimal(20, 4)
+  description String?
+  metadata    Json?                                     // Flexible payload
+
+  createdAt   DateTime        @default(now())
+
+  @@index([playerId, createdAt(sort: Desc)])            // Recent txns
+  @@index([playerId, type])
+  @@index([createdAt])                                  // Time-range scans
+}
+
+// ---------------------------------------------------------------------------
+// Achievement — definition table (seeded, not user-created)
+// ---------------------------------------------------------------------------
+
+model Achievement {
+  id          String              @id @default(cuid())
+  key         String              @unique              // e.g. "first_module"
+  name        String
+  description String
+  category    AchievementCategory
+  xpReward    Int                 @default(0)
+  lunarReward Decimal             @default(0) @db.Decimal(10, 4)
+  iconUrl     String?
+  threshold   Int                 @default(1)          // e.g. build 10 modules
+  sortOrder   Int                 @default(0)
+
+  // --- Relations ---
+  players     PlayerAchievement[]
+
+  @@index([category])
+}
+
+model PlayerAchievement {
+  id            String      @id @default(cuid())
+  playerId      String
+  player        Player      @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id])
+  unlockedAt    DateTime    @default(now())
+  progress      Int         @default(0)                 // Partial progress tracking
+
+  @@unique([playerId, achievementId])
+  @@index([playerId])
+}
+
+// ---------------------------------------------------------------------------
+// Alliance — player groups for cooperative bonuses
+// ---------------------------------------------------------------------------
+
+model Alliance {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  iconUrl     String?
+  level       Int       @default(1)
+  totalLunar  Decimal   @default(0) @db.Decimal(20, 4)  // Treasury
+  memberCount Int       @default(0)
+  maxMembers  Int       @default(10)
+
+  deletedAt   DateTime?
+  version     Int       @default(1)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  members     AllianceMember[]
+
+  @@index([name])
+  @@index([totalLunar(sort: Desc)])                     // Alliance leaderboard
+}
+
+model AllianceMember {
+  id         String       @id @default(cuid())
+  allianceId String
+  alliance   Alliance     @relation(fields: [allianceId], references: [id], onDelete: Cascade)
+  playerId   String       @unique                      // A player can be in one alliance
+  player     Player       @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  role       AllianceRole @default(MEMBER)
+  joinedAt   DateTime     @default(now())
+
+  @@index([allianceId])
+  @@index([playerId])
+}
+
+// ---------------------------------------------------------------------------
+// ProductionLog — time-partitioned daily snapshots (cron-written)
+// ---------------------------------------------------------------------------
+
+model ProductionLog {
+  id              String       @id @default(cuid())
+  playerId        String
+  player          Player       @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  date            DateTime     @db.Date                 // Partition key
+  resource        ResourceType @default(LUNAR)
+  totalProduced   Decimal      @default(0) @db.Decimal(20, 4)
+  totalCollected  Decimal      @default(0) @db.Decimal(20, 4)
+  activeModules   Int          @default(0)
+  avgEfficiency   Decimal      @default(0) @db.Decimal(5, 2)
+
+  @@unique([playerId, date, resource])                  // One row per player/day/resource
+  @@index([date])                                       // Prune old logs
+  @@index([playerId, date(sort: Desc)])                 // Player history
+}
+
+// ---------------------------------------------------------------------------
+// GameEvent — audit log for significant events
+// ---------------------------------------------------------------------------
 
 model GameEvent {
-  id        String   @id @default(cuid())
-  type      String // build, collect, upgrade, daily_reward
-  playerId  String
-  data      Json? // Flexible event payload
-  createdAt DateTime @default(now())
+  id          String        @id @default(cuid())
+  playerId    String?                                   // Nullable for system events
+  type        String                                    // build, collect, upgrade, login, etc.
+  severity    EventSeverity @default(INFO)
+  data        Json?
+  createdAt   DateTime      @default(now())
 
-  @@index([playerId])
+  @@index([playerId, createdAt(sort: Desc)])
   @@index([type])
-  @@index([createdAt])
+  @@index([severity])
+  @@index([createdAt])                                  // Time-range cleanup
 }
 
-// --- Leaderboard ---
-// Materialized leaderboard snapshot (updated by cron)
+// ---------------------------------------------------------------------------
+// LeaderboardSnapshot — materialized ranking, rebuilt by cron
+// ---------------------------------------------------------------------------
 
-model LeaderboardEntry {
-  id             String   @id @default(cuid())
-  fid            Int
-  username       String
-  lunarBalance   Int
-  totalEarned    Int
-  moduleCount    Int
-  colonyLevel    Int
-  rank           Int
-  period         String // "daily", "weekly", "alltime"
-  snapshotAt     DateTime @default(now())
+model LeaderboardSnapshot {
+  id              String            @id @default(cuid())
+  fid             Int
+  username        String?
+  period          LeaderboardPeriod
+  rank            Int
+  lunarBalance    Decimal           @db.Decimal(20, 4)
+  totalEarnings   Decimal           @db.Decimal(20, 4)
+  moduleCount     Int
+  level           Int
+  efficiency      Decimal           @default(0) @db.Decimal(5, 2)
+  snapshotAt      DateTime          @default(now())
 
   @@unique([fid, period])
   @@index([period, rank])
+  @@index([snapshotAt])
+}
+
+// ---------------------------------------------------------------------------
+// GameConfig — live-tunable game balance (no deploys needed)
+// ---------------------------------------------------------------------------
+
+model GameConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique                          // e.g. "tick_interval_ms"
+  value       Json                                      // Flexible: number, string, object
+  description String?
+  category    String   @default("general")              // general, economy, modules, crew
+  version     Int      @default(1)
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?                                   // Admin FID or system
+
+  @@index([category])
+}
+
+// ---------------------------------------------------------------------------
+// ModuleBlueprint — static definitions for module types x tiers
+// ---------------------------------------------------------------------------
+
+model ModuleBlueprint {
+  id              String     @id @default(cuid())
+  type            ModuleType
+  tier            Tier
+  name            String
+  description     String?
+  baseOutput      Decimal    @db.Decimal(10, 4)
+  baseCost        Decimal    @db.Decimal(10, 4)
+  costResource    ResourceType @default(LUNAR)
+  upgradeCost     Decimal    @db.Decimal(10, 4)
+  maxLevel        Int        @default(10)
+  unlockLevel     Int        @default(1)               // Player level required
+
+  // Resource requirements for higher tiers
+  requiredResources Json?                               // [{type, amount}]
+
+  iconUrl         String?
+  sortOrder       Int        @default(0)
+  version         Int        @default(1)
+  updatedAt       DateTime   @updatedAt
+
+  @@unique([type, tier])
+  @@index([type])
+  @@index([unlockLevel])
 }

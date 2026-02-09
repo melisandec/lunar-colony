@@ -59,9 +59,9 @@ export async function POST(
 
       // Map buttons to module types
       const moduleMap: Record<number, ModuleType> = {
-        1: "solar_panel",
-        2: "mining_rig",
-        3: "habitat",
+        1: "SOLAR_PANEL",
+        2: "MINING_RIG",
+        3: "HABITAT",
       };
 
       const moduleType = moduleMap[buttonIndex];

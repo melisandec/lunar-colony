@@ -93,20 +93,32 @@ export const GAME_CONSTANTS = {
   MODULE_COST_MULTIPLIER: 1.15,
   /** Starting $LUNAR for new players */
   STARTING_LUNAR: 500,
-  /** Module types available */
+  /** Module types available (matches Prisma ModuleType enum) */
   MODULE_TYPES: [
-    "solar_panel",
-    "mining_rig",
-    "habitat",
-    "research_lab",
-    "water_extractor",
-    "oxygen_generator",
-    "storage_depot",
-    "launch_pad",
+    "SOLAR_PANEL",
+    "MINING_RIG",
+    "HABITAT",
+    "RESEARCH_LAB",
+    "WATER_EXTRACTOR",
+    "OXYGEN_GENERATOR",
+    "STORAGE_DEPOT",
+    "LAUNCH_PAD",
+  ] as const,
+  /** Tier ordering */
+  TIERS: ["COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY"] as const,
+  /** Resource types */
+  RESOURCE_TYPES: [
+    "LUNAR",
+    "REGOLITH",
+    "WATER_ICE",
+    "HELIUM3",
+    "RARE_EARTH",
   ] as const,
 } as const;
 
 export type ModuleType = (typeof GAME_CONSTANTS.MODULE_TYPES)[number];
+export type Tier = (typeof GAME_CONSTANTS.TIERS)[number];
+export type ResourceType = (typeof GAME_CONSTANTS.RESOURCE_TYPES)[number];
 
 // --- Formatting ---
 
