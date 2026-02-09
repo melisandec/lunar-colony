@@ -1,11 +1,41 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { GAME_CONSTANTS } from "@/lib/utils";
+import { useFarcaster } from "@/components/farcaster-provider";
 
 /**
  * Landing page for Lunar Colony Tycoon.
- * This is the web view - most players interact via the Farcaster Frame.
+ * When opened inside Farcaster as a Mini App, auto-redirects to the game dashboard.
+ * Otherwise shows the marketing landing page.
  */
 export default function Home() {
+  const { isInMiniApp, loading } = useFarcaster();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && isInMiniApp) {
+      router.replace("/dashboard");
+    }
+  }, [isInMiniApp, loading, router]);
+
+  // While detecting env inside Farcaster, show a branded loading state
+  // instead of a flash of the landing page
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
+        <div className="text-center">
+          <div className="mb-4 text-6xl">🌙</div>
+          <div className="animate-pulse text-lg text-indigo-300">
+            Loading colony…
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white">
       {/* Hero Section */}
