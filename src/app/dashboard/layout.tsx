@@ -1,6 +1,7 @@
 "use client";
 
 import { Providers } from "@/components/providers";
+import { useFarcaster } from "@/components/farcaster-provider";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { ResourceBar } from "@/components/dashboard/resource-bar";
@@ -38,6 +39,9 @@ function DashboardShell({ children }: { children: ReactNode }) {
   const fid = useGameStore((s) => s.fid);
   const setFid = useGameStore((s) => s.setFid);
   const pushNav = useNavHistory((s) => s.push);
+
+  // Auto-detect FID from Farcaster SDK context
+  const { fid: farcasterFid, loading: farcasterLoading } = useFarcaster();
 
   // Accessibility preferences → data attributes on root element
   const contrastMode = useAccessibilityStore((s) => s.contrastMode);
@@ -131,6 +135,13 @@ function DashboardShell({ children }: { children: ReactNode }) {
     );
   }, [textScale]);
 
+  // Auto-set FID from Farcaster SDK context
+  useEffect(() => {
+    if (!fid && farcasterFid) {
+      setFid(farcasterFid);
+    }
+  }, [fid, farcasterFid, setFid]);
+
   // Pick up ?fid= from URL and persist
   useEffect(() => {
     const urlFid = searchParams.get("fid");
@@ -140,7 +151,24 @@ function DashboardShell({ children }: { children: ReactNode }) {
     }
   }, [searchParams, setFid]);
 
-  // Show FID entry if none set
+  // While Farcaster SDK is still detecting, show a loading state
+  // instead of flashing the FID entry form
+  if (!fid && farcasterLoading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-slate-950 text-white">
+        <div className="flex flex-col items-center gap-3">
+          <span className="text-5xl" aria-hidden="true">
+            🌙
+          </span>
+          <p className="animate-pulse text-sm text-slate-400">
+            Connecting to Farcaster…
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show FID entry only as fallback (not in Mini App / no SDK context)
   if (!fid) {
     return <FidEntry />;
   }
