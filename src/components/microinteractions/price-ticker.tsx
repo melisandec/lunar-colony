@@ -34,28 +34,27 @@ export function PriceTicker({
   className = "",
 }: PriceTickerProps) {
   const reduced = useReducedMotion();
+  const [prevTracked, setPrevTracked] = useState(value);
   const [direction, setDirection] = useState<"up" | "down" | "none">("none");
-  const [displayValue, setDisplayValue] = useState(value);
-  const prevRef = useRef(previousValue ?? value);
   const flashTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
-  useEffect(() => {
-    const prev = previousValue ?? prevRef.current;
+  // Render-time state adjustment: detect value changes without effects
+  if (value !== prevTracked) {
+    setPrevTracked(value);
+    const prev = previousValue ?? prevTracked;
     if (value > prev) setDirection("up");
     else if (value < prev) setDirection("down");
-    else setDirection("none");
+  }
 
-    prevRef.current = value;
-    setDisplayValue(value);
-
-    // Flash lasts 800ms
+  // Reset flash after 800ms
+  useEffect(() => {
+    if (direction === "none") return;
     if (flashTimer.current) clearTimeout(flashTimer.current);
     flashTimer.current = setTimeout(() => setDirection("none"), 800);
-
     return () => {
       if (flashTimer.current) clearTimeout(flashTimer.current);
     };
-  }, [value, previousValue]);
+  }, [direction]);
 
   const dirColor =
     direction === "up"
@@ -73,7 +72,7 @@ export function PriceTicker({
 
   const arrow = direction === "up" ? "▲" : direction === "down" ? "▼" : "";
 
-  const formatted = displayValue.toFixed(decimals);
+  const formatted = value.toFixed(decimals);
 
   if (reduced) {
     return (

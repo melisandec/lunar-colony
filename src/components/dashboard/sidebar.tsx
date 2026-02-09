@@ -76,7 +76,6 @@ export function Sidebar({ onOpenA11y }: { onOpenA11y?: () => void }) {
                     collapsed ? (route.shortLabel ?? route.label) : undefined
                   }
                   aria-current={pathname === route.path ? "page" : undefined}
-                  aria-keyshortcuts={route.shortcut?.toUpperCase()}
                   className={`group relative flex flex-1 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all min-h-[44px]
                     focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950
                     ${active ? "bg-cyan-500/10 text-cyan-400" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"}`}

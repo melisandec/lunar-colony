@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   isMuted,
   setMuted,
@@ -21,16 +21,9 @@ import {
  * Designed to embed inside an existing settings panel.
  */
 export function SoundSettings() {
-  const [muted, setMutedState] = useState(false);
-  const [volume, setVolumeState] = useState(0.35);
-  const [hapticsOn, setHapticsOnState] = useState(true);
-
-  // Sync from engine state on mount
-  useEffect(() => {
-    setMutedState(isMuted());
-    setVolumeState(getVolume());
-    setHapticsOnState(isHapticsEnabled());
-  }, []);
+  const [muted, setMutedState] = useState(() => isMuted());
+  const [volume, setVolumeState] = useState(() => getVolume());
+  const [hapticsOn, setHapticsOnState] = useState(() => isHapticsEnabled());
 
   const toggleMute = () => {
     const next = !muted;

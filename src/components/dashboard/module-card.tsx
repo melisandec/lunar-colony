@@ -104,7 +104,7 @@ export function ModuleCard({
         role="button"
         tabIndex={0}
         aria-label={a11yLabel}
-        aria-selected={selected}
+        aria-pressed={selected}
         aria-disabled={!module.isActive}
         onClick={() => {
           fb.click();

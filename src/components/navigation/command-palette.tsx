@@ -31,6 +31,7 @@ export function CommandPalette({ onAction }: CommandPaletteProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const pathname = usePathname();
   const [prevPathname, setPrevPathname] = useState(pathname);
@@ -121,6 +122,8 @@ export function CommandPalette({ onAction }: CommandPaletteProps) {
       fb.click();
       if (item.type === "route") {
         router.push(item.data.route.path);
+      } else if (item.data.type === "navigate" && item.data.path) {
+        router.push(item.data.path);
       } else {
         onAction?.(item.data.id);
       }
@@ -162,6 +165,32 @@ export function CommandPalette({ onAction }: CommandPaletteProps) {
     el?.scrollIntoView({ block: "nearest" });
   }, [selectedIndex]);
 
+  // Focus trap — keep Tab/Shift+Tab within the palette
+  useEffect(() => {
+    if (!open) return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    function handleTab(e: KeyboardEvent) {
+      if (e.key !== "Tab") return;
+      const focusable = dialog!.querySelectorAll<HTMLElement>(
+        'input, button, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    window.addEventListener("keydown", handleTab);
+    return () => window.removeEventListener("keydown", handleTab);
+  }, [open]);
+
   if (!open) return null;
 
   return (
@@ -180,6 +209,7 @@ export function CommandPalette({ onAction }: CommandPaletteProps) {
 
           {/* Palette */}
           <motion.div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-label="Command palette"
@@ -217,6 +247,9 @@ export function CommandPalette({ onAction }: CommandPaletteProps) {
                 onKeyDown={handleKeyDown}
                 placeholder="Search pages, actions, modules…"
                 aria-label="Search"
+                role="combobox"
+                aria-expanded={true}
+                aria-controls="palette-listbox"
                 aria-activedescendant={
                   items[selectedIndex]
                     ? `palette-item-${selectedIndex}`
@@ -232,6 +265,7 @@ export function CommandPalette({ onAction }: CommandPaletteProps) {
             {/* Results */}
             <div
               ref={listRef}
+              id="palette-listbox"
               role="listbox"
               aria-label="Search results"
               className="max-h-[50vh] overflow-y-auto p-2"
@@ -242,9 +276,9 @@ export function CommandPalette({ onAction }: CommandPaletteProps) {
                 </div>
               )}
 
-              {!query.trim() && items.length > 0 && (
+              {!query.trim() && (
                 <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
-                  Quick actions
+                  Quick actions &amp; pages
                 </div>
               )}
 

@@ -8,6 +8,14 @@ import { useGameStore } from "@/stores/game-store";
 // Phase 1: Welcome / Claim Screen (full-screen overlay)
 // ---------------------------------------------------------------------------
 
+// Pre-computed star positions & animation timings (avoids Math.random in render)
+const STARS = Array.from({ length: 40 }, () => ({
+  left: Math.random() * 100,
+  top: Math.random() * 100,
+  duration: 2 + Math.random() * 3,
+  delay: Math.random() * 2,
+}));
+
 const STARTER_MODULES = [
   { name: "Solar Array", icon: "⚡", status: "Online" },
   { name: "Regolith Processor", icon: "⛏️", status: "Online" },
@@ -42,22 +50,22 @@ export function WelcomeScreen() {
         >
           {/* Stars background effect */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            {Array.from({ length: 40 }).map((_, i) => (
+            {STARS.map((star, i) => (
               <motion.div
                 key={i}
                 className="absolute h-0.5 w-0.5 rounded-full bg-white"
                 style={{
-                  left: `${Math.random() * 100}%`,
-                  top: `${Math.random() * 100}%`,
+                  left: `${star.left}%`,
+                  top: `${star.top}%`,
                 }}
                 animate={{
                   opacity: [0.2, 0.8, 0.2],
                   scale: [1, 1.5, 1],
                 }}
                 transition={{
-                  duration: 2 + Math.random() * 3,
+                  duration: star.duration,
                   repeat: Infinity,
-                  delay: Math.random() * 2,
+                  delay: star.delay,
                 }}
               />
             ))}

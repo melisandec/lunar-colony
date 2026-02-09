@@ -15,17 +15,19 @@ import {
 import {
   Breadcrumbs,
   NavHistoryButtons,
-} from "@/components/navigation/breadcrumbs";
-import { ContextualActionBar } from "@/components/navigation/contextual-action-bar";
-import { CommandPalette } from "@/components/navigation/command-palette";
+  ContextualActionBar,
+  CommandPalette,
+} from "@/components/navigation";
 import { useAccessibilityStore } from "@/stores/accessibility-store";
 import { useGameStore } from "@/stores/game-store";
 import { useNavHistory } from "@/stores/navigation-store";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   useEffect,
   useState,
   useCallback,
+  useMemo,
   type ReactNode,
   Suspense,
 } from "react";
@@ -56,19 +58,70 @@ function DashboardShell({ children }: { children: ReactNode }) {
   const handleQuickAction = useCallback((actionId: string) => {
     switch (actionId) {
       case "collect":
-        // Trigger collect resources
+        // Dispatch custom event that colony page listens for
+        window.dispatchEvent(new CustomEvent("lunar:collect"));
         break;
       case "build":
-        // Open build menu
+        window.dispatchEvent(new CustomEvent("lunar:build"));
         break;
       case "settings":
         setA11yOpen(true);
         break;
       case "shortcuts":
-        // KeyboardShortcutsDialog listens to its own trigger
+        window.dispatchEvent(new CustomEvent("lunar:show-shortcuts"));
         break;
     }
   }, []);
+
+  // Global keyboard shortcuts for section navigation
+  const router = useRouter();
+  const navShortcuts = useMemo(
+    () => [
+      {
+        key: "c",
+        handler: () => router.push("/dashboard/colony"),
+        description: "Colony view",
+      },
+      {
+        key: "p",
+        handler: () => router.push("/dashboard/production"),
+        description: "Production cycle",
+      },
+      {
+        key: "m",
+        handler: () => router.push("/dashboard/market"),
+        description: "Market terminal",
+      },
+      {
+        key: "r",
+        handler: () => router.push("/dashboard/research"),
+        description: "Research tree",
+      },
+      {
+        key: "a",
+        handler: () => router.push("/dashboard/alliance"),
+        description: "Alliance",
+      },
+      {
+        key: "e",
+        handler: () => handleQuickAction("collect"),
+        description: "Collect earnings",
+      },
+      {
+        key: "b",
+        handler: () => handleQuickAction("build"),
+        description: "Build module",
+      },
+      {
+        key: "?",
+        shift: true,
+        handler: () => handleQuickAction("shortcuts"),
+        description: "Keyboard shortcuts",
+      },
+    ],
+    [router, handleQuickAction],
+  );
+  useKeyboardShortcuts(navShortcuts);
 
   // Apply text scale as CSS custom property
   useEffect(() => {

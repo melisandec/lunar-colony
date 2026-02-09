@@ -12,8 +12,8 @@
 import { prismaMock, resetPrismaMock } from "../helpers/prisma-mock";
 
 // Import engine after mocks
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const gameEngine =
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("@/lib/game-engine/index") as typeof import("@/lib/game-engine/index");
 const {
   getOrCreatePlayer,
@@ -23,8 +23,8 @@ const {
   collectEarnings,
 } = gameEngine;
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { GAME_CONSTANTS } =
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("@/lib/utils") as typeof import("@/lib/utils");
 
 beforeEach(() => {
@@ -102,7 +102,7 @@ describe("getOrCreatePlayer", () => {
       deletedAt: null,
     };
 
-    prismaMock.player.create.mockResolvedValueOnce(mockPlayer as any);
+    prismaMock.player.create.mockResolvedValueOnce(mockPlayer as never);
 
     const player = await getOrCreatePlayer(12345, "testuser");
     expect(player).toBeDefined();
@@ -136,7 +136,7 @@ describe("getOrCreatePlayer", () => {
       deletedAt: null,
     };
 
-    prismaMock.player.findUnique.mockResolvedValueOnce(existingPlayer as any);
+    prismaMock.player.findUnique.mockResolvedValueOnce(existingPlayer as never);
 
     const player = await getOrCreatePlayer(99999);
     expect(player.id).toBe("player_existing");
@@ -185,7 +185,7 @@ describe("calculateColonyState", () => {
       ],
     };
 
-    const state = calculateColonyState(mockPlayer as any);
+    const state = calculateColonyState(mockPlayer as never);
     expect(state.productionRate).toBe(35); // 10 + 25
     expect(state.modules).toHaveLength(2);
     expect(state.lunarBalance).toBe(500);
@@ -227,7 +227,7 @@ describe("calculateColonyState", () => {
       ],
     };
 
-    const state = calculateColonyState(mockPlayer as any);
+    const state = calculateColonyState(mockPlayer as never);
     expect(state.productionRate).toBe(10); // Only solar
   });
 
@@ -255,7 +255,7 @@ describe("calculateColonyState", () => {
       ],
     };
 
-    const state = calculateColonyState(mockPlayer as any);
+    const state = calculateColonyState(mockPlayer as never);
     expect(state.productionRate).toBe(50);
   });
 
@@ -283,7 +283,7 @@ describe("calculateColonyState", () => {
       ],
     };
 
-    const state = calculateColonyState(mockPlayer as any);
+    const state = calculateColonyState(mockPlayer as never);
     // 10 min / 5 min tick = 2 ticks × 10 output = 20
     expect(state.pendingEarnings).toBe(20);
   });
@@ -300,7 +300,7 @@ describe("buildModule", () => {
       lunarBalance: 100000,
       version: 1,
       modules: Array(20).fill({ id: "m", type: "SOLAR_PANEL" }),
-    } as any);
+    } as never);
 
     const result = await buildModule("player_1", "SOLAR_PANEL");
     expect(result.success).toBe(false);
@@ -313,7 +313,7 @@ describe("buildModule", () => {
       lunarBalance: 10, // Too low
       version: 1,
       modules: Array(4).fill({ id: "m", type: "SOLAR_PANEL" }),
-    } as any);
+    } as never);
 
     const result = await buildModule("player_1", "LAUNCH_PAD");
     expect(result.success).toBe(false);
@@ -337,7 +337,7 @@ describe("buildModule", () => {
         { id: "m1", coordinates: { x: 0, y: 0 } },
         { id: "m2", coordinates: { x: 1, y: 0 } },
       ],
-    } as any);
+    } as never);
 
     prismaMock.$transaction.mockResolvedValueOnce([
       { id: "player_1" }, // player update
@@ -395,7 +395,7 @@ describe("collectEarnings", () => {
           level: 1,
         },
       ],
-    } as any);
+    } as never);
 
     const result = await collectEarnings("player_1");
     expect(result.collected).toBe(0);
@@ -422,7 +422,7 @@ describe("collectEarnings", () => {
           level: 1,
         },
       ],
-    } as any);
+    } as never);
 
     // 10 min / 5 min tick = 2 ticks × 10 output = 20 earnings
     prismaMock.$transaction.mockResolvedValueOnce([
@@ -502,7 +502,7 @@ describe("Full session flow", () => {
         },
       ],
     };
-    prismaMock.player.findUnique.mockResolvedValueOnce(mockPlayer as any);
+    prismaMock.player.findUnique.mockResolvedValueOnce(mockPlayer as never);
 
     const player = await getOrCreatePlayer(555, "sim_player");
 

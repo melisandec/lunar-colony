@@ -19,13 +19,13 @@ import {
 import type { ModuleType } from "@/lib/utils";
 
 // Import engine after mocks
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const gameEngine =
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("@/lib/game-engine/index") as typeof import("@/lib/game-engine/index");
 const { calculateModuleCost } = gameEngine;
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { GAME_CONSTANTS } =
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("@/lib/utils") as typeof import("@/lib/utils");
 
 beforeEach(() => {

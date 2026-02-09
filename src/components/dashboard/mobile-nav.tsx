@@ -24,7 +24,6 @@ export function MobileNav() {
             key={route.path}
             href={route.path}
             onClick={() => fb.click()}
-            aria-label={label}
             aria-current={active ? "page" : undefined}
             className={`relative flex flex-col items-center gap-0.5 px-3 py-3 text-xs font-medium transition-colors min-h-[48px] min-w-[48px]
               focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:rounded-lg

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useReducedMotion } from "@/stores/accessibility-store";
 
 /* ---------- types ---------- */
@@ -24,6 +24,7 @@ interface Particle {
   delay: number;
   duration: number;
   shape: "circle" | "star" | "square";
+  rotation: number;
 }
 
 /* ---------- preset configs ---------- */
@@ -97,6 +98,7 @@ function generateParticles(preset: ParticlePreset): Particle[] {
       delay: Math.random() * 0.15,
       duration: cfg.duration * (0.6 + Math.random() * 0.4),
       shape: cfg.shapes[Math.floor(Math.random() * cfg.shapes.length)]!,
+      rotation: Math.random() * 45,
     }),
   );
 }
@@ -105,10 +107,12 @@ function ParticleShape({
   shape,
   size,
   color,
+  rotation = 0,
 }: {
   shape: Particle["shape"];
   size: number;
   color: string;
+  rotation?: number;
 }) {
   if (shape === "star") {
     return (
@@ -125,7 +129,7 @@ function ParticleShape({
           height: size,
           backgroundColor: color,
           borderRadius: 2,
-          transform: `rotate(${Math.random() * 45}deg)`,
+          transform: `rotate(${rotation}deg)`,
         }}
       />
     );
@@ -157,16 +161,17 @@ export function ParticleExplosion({
   const reduced = useReducedMotion();
   const [particles, setParticles] = useState<Particle[]>([]);
 
-  const spawn = useCallback(() => {
-    const p = generateParticles(preset);
-    setParticles(p);
-    const maxDur = PRESETS[preset].duration * 1000 + 300;
-    setTimeout(() => setParticles([]), maxDur);
-  }, [preset]);
-
   useEffect(() => {
-    if (trigger > 0) spawn();
-  }, [trigger, spawn]);
+    if (trigger > 0) {
+      const p = generateParticles(preset);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: responding to trigger prop change
+      setParticles(p);
+      const maxDur = PRESETS[preset].duration * 1000 + 300;
+      const t = setTimeout(() => setParticles([]), maxDur);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, [trigger, preset]);
 
   // Reduced motion fallback: brief glow pulse
   const glowColor = useMemo(() => PRESETS[preset].colors[0], [preset]);
@@ -217,7 +222,12 @@ export function ParticleExplosion({
                 ease: [0.16, 1, 0.3, 1],
               }}
             >
-              <ParticleShape shape={p.shape} size={p.size} color={p.color} />
+              <ParticleShape
+                shape={p.shape}
+                size={p.size}
+                color={p.color}
+                rotation={p.rotation}
+              />
             </motion.div>
           );
         })}

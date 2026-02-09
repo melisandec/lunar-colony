@@ -137,8 +137,8 @@ function referenceModuleOutput(
 }
 
 // ---- Import the actual engine (after mocks are set up) ----
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { calculatePlayerProduction } =
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("@/lib/production-engine") as typeof import("@/lib/production-engine");
 
 beforeEach(() => {

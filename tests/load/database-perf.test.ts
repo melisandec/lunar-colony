@@ -19,16 +19,16 @@ import {
 } from "../helpers/factories";
 
 // Import after mocks
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { calculatePlayerProduction } =
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("@/lib/production-engine") as typeof import("@/lib/production-engine");
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { generateMarketDepth } =
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("@/lib/market-engine") as typeof import("@/lib/market-engine");
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { calculateColonyState } =
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("@/lib/game-engine/index") as typeof import("@/lib/game-engine/index");
 
 beforeEach(() => {
@@ -148,7 +148,7 @@ describe("Colony state calculation at scale", () => {
         ),
       };
 
-      const state = calculateColonyState(mockPlayer as any);
+      const state = calculateColonyState(mockPlayer as never);
       expect(state.playerId).toBe(`player_${i}`);
     }
 

@@ -82,7 +82,16 @@ export const ROUTE_MAP: RouteNode[] = [
     shortLabel: "Market",
     icon: "📈",
     shortcut: "m",
-    keywords: ["market", "trade", "buy", "sell", "prices", "exchange"],
+    keywords: [
+      "market",
+      "trade",
+      "buy",
+      "sell",
+      "prices",
+      "exchange",
+      "charts",
+      "rates",
+    ],
     children: [
       {
         path: "/dashboard/market",
@@ -124,7 +133,17 @@ export const ROUTE_MAP: RouteNode[] = [
     shortLabel: "Alliance",
     icon: "🤝",
     shortcut: "a",
-    keywords: ["alliance", "corporation", "guild", "team", "social"],
+    keywords: [
+      "alliance",
+      "corporation",
+      "guild",
+      "team",
+      "social",
+      "corp",
+      "members",
+      "players",
+      "roster",
+    ],
     children: [
       {
         path: "/dashboard/alliance",
@@ -163,7 +182,7 @@ export function flattenRoutes(nodes: RouteNode[] = ROUTE_MAP): RouteNode[] {
     result.push(node);
     if (node.children) {
       for (const child of node.children) {
-        // Skip if child path is the same as parent (it's the "default" tab)
+        // Skip if child path equals parent — it's the default tab, already covered
         if (child.path !== node.path) result.push(child);
       }
     }
@@ -241,8 +260,14 @@ export interface SearchResult {
  * Score routes against a search query. Returns sorted results.
  */
 export function searchRoutes(query: string): SearchResult[] {
-  if (!query.trim()) return [];
   const q = query.toLowerCase().trim();
+  // Return all top-level routes on empty query (for browse mode)
+  if (!q) {
+    return ROUTE_MAP.map((node) => ({
+      route: node,
+      score: 0,
+    }));
+  }
   const results: SearchResult[] = [];
 
   for (const node of ROUTE_MAP) {
@@ -254,7 +279,8 @@ export function searchRoutes(query: string): SearchResult[] {
 
     if (node.children) {
       for (const child of node.children) {
-        if (child.path === node.path) continue; // skip default tab
+        // Skip default-tab children that share parent path — the parent result covers them
+        if (child.path === node.path) continue;
         const childScore = scoreRoute(child, q);
         if (childScore > 0) {
           results.push({
@@ -310,7 +336,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
     label: "Collect earnings",
     icon: "⚡",
     keywords: ["collect", "earn", "harvest", "claim"],
-    shortcut: "E",
+    shortcut: "e",
     type: "action",
   },
   {
@@ -318,7 +344,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
     label: "Build module",
     icon: "🏗️",
     keywords: ["build", "construct", "new", "create"],
-    shortcut: "B",
+    shortcut: "b",
     type: "action",
   },
   {
@@ -359,6 +385,8 @@ interface NavHistoryState {
   history: string[];
   /** Index pointing to current position in history */
   currentIndex: number;
+  /** True when navigating via goBack/goForward — suppresses push */
+  _traversing: boolean;
 
   /** Record a new navigation */
   push: (path: string) => void;
@@ -379,9 +407,15 @@ export const useNavHistory = create<NavHistoryState>()(
     (set, get) => ({
       history: [],
       currentIndex: -1,
+      _traversing: false,
 
       push: (path: string) => {
-        const { history, currentIndex } = get();
+        const { history, currentIndex, _traversing } = get();
+        // When navigating via goBack/goForward, don't add a new entry
+        if (_traversing) {
+          set({ _traversing: false });
+          return;
+        }
         // If we're not at the end, drop forward entries
         const trimmed = history.slice(0, currentIndex + 1);
         // Don't add duplicates in a row
@@ -394,7 +428,7 @@ export const useNavHistory = create<NavHistoryState>()(
         const { history, currentIndex } = get();
         if (currentIndex <= 0) return null;
         const newIndex = currentIndex - 1;
-        set({ currentIndex: newIndex });
+        set({ currentIndex: newIndex, _traversing: true });
         return history[newIndex] ?? null;
       },
 
@@ -402,7 +436,7 @@ export const useNavHistory = create<NavHistoryState>()(
         const { history, currentIndex } = get();
         if (currentIndex >= history.length - 1) return null;
         const newIndex = currentIndex + 1;
-        set({ currentIndex: newIndex });
+        set({ currentIndex: newIndex, _traversing: true });
         return history[newIndex] ?? null;
       },
 

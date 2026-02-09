@@ -13,8 +13,8 @@ import {
 } from "../helpers/factories";
 
 // Import engine after mocks
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const eventEngine =
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("@/lib/event-engine") as typeof import("@/lib/event-engine");
 const { EVENT_DEFINITIONS, getModifier, getPlayerEventModifiers } = eventEngine;
 
@@ -169,7 +169,7 @@ describe("getPlayerEventModifiers", () => {
         status: "ACTIVE",
         startTime: new Date(Date.now() - 1000),
         endTime: new Date(Date.now() + 86400000),
-      } as any,
+      } as never,
     ]);
 
     const mods = await getPlayerEventModifiers("player_1");
@@ -187,14 +187,14 @@ describe("getPlayerEventModifiers", () => {
         isGlobal: true,
         targetPlayerIds: null,
         modifiers: { GLOBAL_PRODUCTION: 1.5 },
-      } as any,
+      } as never,
       {
         id: "evt_2",
         name: "Event B",
         isGlobal: true,
         targetPlayerIds: null,
         modifiers: { GLOBAL_PRODUCTION: 1.2 },
-      } as any,
+      } as never,
     ]);
 
     const mods = await getPlayerEventModifiers("player_1");
@@ -211,7 +211,7 @@ describe("getPlayerEventModifiers", () => {
         isGlobal: false,
         targetPlayerIds: ["player_2", "player_3"],
         modifiers: { ALLIANCE_BONUS: 2.0 },
-      } as any,
+      } as never,
     ]);
 
     const mods = await getPlayerEventModifiers("player_1");
@@ -227,7 +227,7 @@ describe("getPlayerEventModifiers", () => {
         isGlobal: false,
         targetPlayerIds: ["player_1", "player_2"],
         modifiers: { ALLIANCE_BONUS: 2.0 },
-      } as any,
+      } as never,
     ]);
 
     const mods = await getPlayerEventModifiers("player_1");
@@ -357,9 +357,9 @@ describe("recordParticipation", () => {
       playerId: "player_1",
       score: 100,
       actions: 1,
-    } as any);
+    } as never);
     prismaMock.eventParticipant.count.mockResolvedValueOnce(1);
-    prismaMock.activeEvent.update.mockResolvedValueOnce({} as any);
+    prismaMock.activeEvent.update.mockResolvedValueOnce({} as never);
 
     await expect(
       recordParticipation("evt_1", "player_1", "production", 100),

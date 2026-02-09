@@ -28,8 +28,8 @@ import type { ModuleProductionRow } from "@/lib/production-engine";
 import type { ModifierSet } from "@/lib/event-engine";
 import type { ModuleType } from "@/lib/utils";
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { GAME_CONSTANTS } =
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("@/lib/utils") as typeof import("@/lib/utils");
 
 // ---- Reference calculator (mirrors production-engine.ts) ----
@@ -91,7 +91,10 @@ function calcOutput(
     agingPenalty = (base + crewBonus) * (1 - decayFactor);
   }
 
-  let output = Math.max(0, (base + crewBonus - agingPenalty) * efficiencyMult);
+  const output = Math.max(
+    0,
+    (base + crewBonus - agingPenalty) * efficiencyMult,
+  );
   let eventMultiplier = 1.0;
   if (eventMods) {
     eventMultiplier *= eventMods.modifiers["GLOBAL_PRODUCTION"] ?? 1.0;

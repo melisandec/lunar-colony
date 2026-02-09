@@ -14,8 +14,8 @@ import { createResourcePrice, runMonteCarlo } from "../helpers/factories";
 import type { ResourceType } from "@/lib/utils";
 
 // Import engine after mocks
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const marketEngine =
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("@/lib/market-engine") as typeof import("@/lib/market-engine");
 const { generateMarketDepth, RESOURCE_CONFIGS } = marketEngine;
 
@@ -286,14 +286,16 @@ describe("executeTrade", () => {
       volatility: 0.08,
       seasonalPhase: 0,
       lastUpdatedAt: new Date(),
-    } as any);
+    } as never);
 
     // Mock the transaction to succeed
-    prismaMock.$transaction.mockImplementationOnce(async (fn: any) => {
+    prismaMock.$transaction.mockImplementationOnce(async (fn: unknown) => {
       if (typeof fn === "function") {
-        return fn(prismaMock);
+        return (fn as (prisma: typeof prismaMock) => Promise<unknown>)(
+          prismaMock,
+        );
       }
-      return Promise.all(fn);
+      return Promise.all(fn as Promise<unknown>[]);
     });
 
     // Mock player lookup inside transaction
@@ -301,7 +303,7 @@ describe("executeTrade", () => {
       id: "player_1",
       lunarBalance: 10000,
       version: 1,
-    } as any);
+    } as never);
 
     const result = await executeTrade("player_1", "REGOLITH", "buy", 50);
     expect(result.success).toBe(true);

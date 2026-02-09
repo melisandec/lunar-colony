@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   useOnboardingStore,
@@ -34,27 +34,37 @@ export function ProTipProvider() {
   const [lastShownAt, setLastShownAt] = useState(0);
 
   // Determine current page key from pathname
-  const currentPage = useMemo(() => {
-    const segment = pathname.split("/").filter(Boolean).pop() ?? "colony";
-    return segment;
-  }, [pathname]);
+  const currentPage = pathname.split("/").filter(Boolean).pop() ?? "colony";
 
   const playerLevel = colony?.level ?? 1;
 
-  // Pick the next eligible tip
-  const eligibleTip = useMemo(() => {
-    if (!hasCompleted || step !== "COMPLETED") return null;
-    const now = Date.now();
-    if (now - lastShownAt < TIP_COOLDOWN_MS) return null;
+  // Show tip after delay — cooldown check happens in the setTimeout callback (not during render)
+  useEffect(() => {
+    if (!hasCompleted || step !== "COMPLETED") {
+      // Use timeout with 0ms to clear asynchronously (avoids sync setState in effect)
+      const clear = setTimeout(() => setActiveTip(null), 0);
+      return () => clearTimeout(clear);
+    }
 
-    return (
-      PRO_TIPS.find(
-        (tip) =>
-          tip.page === currentPage &&
-          tip.minLevel <= Math.max(playerLevel, maxLevelSeen) &&
-          !dismissedTips.includes(tip.id),
-      ) ?? null
-    );
+    const timer = setTimeout(() => {
+      const now = Date.now();
+      if (now - lastShownAt < TIP_COOLDOWN_MS) return;
+
+      const tip =
+        PRO_TIPS.find(
+          (t) =>
+            t.page === currentPage &&
+            t.minLevel <= Math.max(playerLevel, maxLevelSeen) &&
+            !dismissedTips.includes(t.id),
+        ) ?? null;
+
+      if (tip) {
+        setActiveTip(tip);
+        setLastShownAt(now);
+      }
+    }, TIP_DELAY_MS);
+
+    return () => clearTimeout(timer);
   }, [
     currentPage,
     playerLevel,
@@ -62,23 +72,7 @@ export function ProTipProvider() {
     dismissedTips,
     hasCompleted,
     step,
-    lastShownAt,
   ]);
-
-  // Show tip after delay
-  useEffect(() => {
-    if (!eligibleTip) {
-      setActiveTip(null);
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setActiveTip(eligibleTip);
-      setLastShownAt(Date.now());
-    }, TIP_DELAY_MS);
-
-    return () => clearTimeout(timer);
-  }, [eligibleTip]);
 
   const handleDismiss = useCallback(() => {
     if (activeTip) {

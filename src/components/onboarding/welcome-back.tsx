@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import { useGameStore } from "@/stores/game-store";
@@ -28,10 +28,13 @@ export function WelcomeBackModal() {
     };
   }, [colony]);
 
+  // Capture mount time once so "hours away" stays stable across renders
+  const [mountTime] = useState(() => Date.now());
+
   const hoursAway = useMemo(() => {
     if (!lastVisitAt) return 0;
-    return Math.round((Date.now() - lastVisitAt) / (60 * 60 * 1000));
-  }, [lastVisitAt]);
+    return Math.round((mountTime - lastVisitAt) / (60 * 60 * 1000));
+  }, [lastVisitAt, mountTime]);
 
   // Pick a contextual greeting based on time away
   const greeting = useMemo(() => {

@@ -1,7 +1,6 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
 import { useReducedMotion } from "@/stores/accessibility-store";
 
 /* ---------- types ---------- */
@@ -30,6 +29,7 @@ const SPARKS = Array.from({ length: 6 }, (_, i) => ({
   x: 10 + Math.random() * 80,
   y: 20 + Math.random() * 60,
   delay: Math.random() * 1.5,
+  repeatDelay: 1.2 + Math.random() * 0.8,
 }));
 
 /* ---------- component ---------- */
@@ -45,18 +45,6 @@ export function ConstructionAnimation({
   className = "",
 }: ConstructionAnimationProps) {
   const reduced = useReducedMotion();
-  const [show, setShow] = useState(false);
-
-  useEffect(() => {
-    if (active) {
-      setShow(true);
-    } else {
-      // Brief delay before hiding for exit animation
-      const t = setTimeout(() => setShow(false), 500);
-      return () => clearTimeout(t);
-    }
-    return undefined;
-  }, [active]);
 
   if (reduced) {
     return (
@@ -79,11 +67,11 @@ export function ConstructionAnimation({
 
   return (
     <AnimatePresence>
-      {show && (
+      {active && (
         <motion.div
           className={`absolute inset-0 z-10 overflow-hidden rounded-2xl ${className}`}
           initial={{ opacity: 0 }}
-          animate={{ opacity: active ? 1 : 0 }}
+          animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
           aria-hidden="true"
@@ -125,7 +113,7 @@ export function ConstructionAnimation({
                 duration: 0.4,
                 delay: spark.delay,
                 repeat: Infinity,
-                repeatDelay: 1.2 + Math.random() * 0.8,
+                repeatDelay: spark.repeatDelay,
               }}
             />
           ))}

@@ -92,7 +92,7 @@ export function NavHistoryButtons() {
   };
 
   return (
-    <div className="flex items-center gap-0.5">
+    <nav aria-label="History navigation" className="flex items-center gap-0.5">
       <motion.button
         onClick={handleBack}
         disabled={!canBack}
@@ -131,6 +131,6 @@ export function NavHistoryButtons() {
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
       </motion.button>
-    </div>
+    </nav>
   );
 }
