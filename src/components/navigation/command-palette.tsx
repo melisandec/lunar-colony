@@ -33,17 +33,38 @@ export function CommandPalette({ onAction }: CommandPaletteProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const pathname = usePathname();
+  const [prevPathname, setPrevPathname] = useState(pathname);
   const fb = useFeedback();
   const reduced = useReducedMotion();
 
-  // ---- Open / close ----
+  // Helper to open the palette (resets state)
+  const openPalette = useCallback(() => {
+    setQuery("");
+    setSelectedIndex(0);
+    setOpen(true);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, []);
+
+  const closePalette = useCallback(() => {
+    setOpen(false);
+  }, []);
+
+  const togglePalette = useCallback(() => {
+    if (open) {
+      closePalette();
+    } else {
+      openPalette();
+    }
+  }, [open, openPalette, closePalette]);
+
+  // ---- Open / close via keyboard ----
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       // ⌘K / Ctrl+K to open
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        setOpen((prev) => !prev);
+        togglePalette();
         return;
       }
       // "/" to open (when not in an input)
@@ -53,26 +74,20 @@ export function CommandPalette({ onAction }: CommandPaletteProps) {
         if ((e.target as HTMLElement).isContentEditable) return;
         // Don't conflict with ? shortcut for help
         e.preventDefault();
-        setOpen(true);
+        openPalette();
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [togglePalette, openPalette]);
 
-  // Auto-focus input when opened
-  useEffect(() => {
+  // Close on route change — adjust state during render (React docs pattern)
+  if (prevPathname !== pathname) {
+    setPrevPathname(pathname);
     if (open) {
-      setQuery("");
-      setSelectedIndex(0);
-      requestAnimationFrame(() => inputRef.current?.focus());
+      setOpen(false);
     }
-  }, [open]);
-
-  // Close on route change
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+  }
 
   // ---- Search results ----
 
@@ -93,10 +108,11 @@ export function CommandPalette({ onAction }: CommandPaletteProps) {
     return [...routeResults, ...actionResults];
   }, [query]);
 
-  // Clamp selected index
-  useEffect(() => {
+  // Reset selection when query changes — handled inline via setQueryAndReset
+  const setQueryAndReset = useCallback((value: string) => {
+    setQuery(value);
     setSelectedIndex(0);
-  }, [query]);
+  }, []);
 
   // ---- Execution ----
 
@@ -108,9 +124,9 @@ export function CommandPalette({ onAction }: CommandPaletteProps) {
       } else {
         onAction?.(item.data.id);
       }
-      setOpen(false);
+      closePalette();
     },
-    [fb, router, onAction],
+    [fb, router, onAction, closePalette],
   );
 
   // ---- Keyboard navigation inside palette ----
@@ -132,11 +148,11 @@ export function CommandPalette({ onAction }: CommandPaletteProps) {
           break;
         case "Escape":
           e.preventDefault();
-          setOpen(false);
+          closePalette();
           break;
       }
     },
-    [items, selectedIndex, execute],
+    [items, selectedIndex, execute, closePalette],
   );
 
   // Scroll selected item into view
@@ -158,7 +174,7 @@ export function CommandPalette({ onAction }: CommandPaletteProps) {
             initial={reduced ? { opacity: 1 } : { opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setOpen(false)}
+            onClick={() => closePalette()}
             aria-hidden="true"
           />
 
@@ -197,7 +213,7 @@ export function CommandPalette({ onAction }: CommandPaletteProps) {
                 ref={inputRef}
                 type="text"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => setQueryAndReset(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Search pages, actions, modules…"
                 aria-label="Search"

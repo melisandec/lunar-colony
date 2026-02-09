@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { buildBreadcrumbs } from "@/stores/navigation-store";
+import { buildBreadcrumbs, useNavHistory } from "@/stores/navigation-store";
 import { useFeedback } from "@/hooks/use-feedback";
 
 /**
@@ -68,24 +68,10 @@ export function Breadcrumbs() {
  * NavHistoryButtons — Back / Forward buttons using the navigation history.
  */
 export function NavHistoryButtons() {
-  // We import lazily to avoid circular deps
-  const { useNavHistory } =
-    require("@/stores/navigation-store") as typeof import("@/stores/navigation-store");
-  const { useRouter } =
-    require("next/navigation") as typeof import("next/navigation");
-
-  const canBack = useNavHistory((s: { canGoBack: () => boolean }) =>
-    s.canGoBack(),
-  );
-  const canForward = useNavHistory((s: { canGoForward: () => boolean }) =>
-    s.canGoForward(),
-  );
-  const goBack = useNavHistory(
-    (s: { goBack: () => string | null }) => s.goBack,
-  );
-  const goForward = useNavHistory(
-    (s: { goForward: () => string | null }) => s.goForward,
-  );
+  const canBack = useNavHistory((s) => s.canGoBack());
+  const canForward = useNavHistory((s) => s.canGoForward());
+  const goBack = useNavHistory((s) => s.goBack);
+  const goForward = useNavHistory((s) => s.goForward);
   const router = useRouter();
   const fb = useFeedback();
 
