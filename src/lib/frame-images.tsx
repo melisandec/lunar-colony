@@ -31,6 +31,28 @@ import {
 // ---------------------------------------------------------------------------
 
 export function generateHomeImage(params: URLSearchParams): ImageResponse {
+  // Parse optional enriched module grid (mgrid_0_type=SOLAR_PANEL&mgrid_0_tier=COMMON&mgrid_0_eff=95 …)
+  const moduleGrid: Array<{
+    type: string;
+    tier?: TierKey;
+    efficiency?: number;
+    isActive?: boolean;
+  }> = [];
+  for (let i = 0; ; i++) {
+    const t = params.get(`mgrid_${i}_type`);
+    if (!t) break;
+    moduleGrid.push({
+      type: t,
+      tier: (params.get(`mgrid_${i}_tier`) as TierKey) ?? undefined,
+      efficiency: params.has(`mgrid_${i}_eff`)
+        ? Number(params.get(`mgrid_${i}_eff`))
+        : undefined,
+      isActive: params.has(`mgrid_${i}_active`)
+        ? params.get(`mgrid_${i}_active`) === "1"
+        : undefined,
+    });
+  }
+
   return HomeScreen({
     name: params.get("name") ?? "Commander",
     level: params.get("level") ?? "1",
@@ -41,6 +63,11 @@ export function generateHomeImage(params: URLSearchParams): ImageResponse {
     collected: Number(params.get("collected") ?? "0"),
     eventBanner: params.get("eventBanner") ?? "none",
     eventCount: Number(params.get("eventCount") ?? "0"),
+    crew: params.has("crew") ? Number(params.get("crew")) : undefined,
+    crewMax: params.has("crewMax") ? Number(params.get("crewMax")) : undefined,
+    streak: params.has("streak") ? Number(params.get("streak")) : undefined,
+    rank: params.has("rank") ? Number(params.get("rank")) : undefined,
+    moduleGrid: moduleGrid.length > 0 ? moduleGrid : undefined,
   });
 }
 
@@ -49,8 +76,8 @@ export function generateHomeImage(params: URLSearchParams): ImageResponse {
 // ---------------------------------------------------------------------------
 
 export function generateColonyImage(params: URLSearchParams): ImageResponse {
+  // Legacy compact module list (mod_solar_panel=3 …)
   const modules: Array<{ type: string; count: number; tier?: TierKey }> = [];
-
   for (const [key, val] of params.entries()) {
     if (key.startsWith("mod_")) {
       modules.push({
@@ -60,12 +87,42 @@ export function generateColonyImage(params: URLSearchParams): ImageResponse {
     }
   }
 
+  // Enriched per-module grid (cgrid_0_type=SOLAR_PANEL&cgrid_0_tier=COMMON&cgrid_0_eff=95&cgrid_0_lvl=2 …)
+  const moduleGrid: Array<{
+    type: string;
+    tier?: TierKey;
+    efficiency?: number;
+    isActive?: boolean;
+    level?: number;
+  }> = [];
+  for (let i = 0; ; i++) {
+    const t = params.get(`cgrid_${i}_type`);
+    if (!t) break;
+    moduleGrid.push({
+      type: t,
+      tier: (params.get(`cgrid_${i}_tier`) as TierKey) ?? undefined,
+      efficiency: params.has(`cgrid_${i}_eff`)
+        ? Number(params.get(`cgrid_${i}_eff`))
+        : undefined,
+      isActive: params.has(`cgrid_${i}_active`)
+        ? params.get(`cgrid_${i}_active`) === "1"
+        : undefined,
+      level: params.has(`cgrid_${i}_lvl`)
+        ? Number(params.get(`cgrid_${i}_lvl`))
+        : undefined,
+    });
+  }
+
   return ColonyScreen({
     level: params.get("level") ?? "1",
     balance: Number(params.get("balance") ?? "0"),
     production: Number(params.get("production") ?? "0"),
     moduleCount: params.get("moduleCount") ?? "0",
     modules,
+    moduleGrid: moduleGrid.length > 0 ? moduleGrid : undefined,
+    selectedModule: params.has("selectedModule")
+      ? Number(params.get("selectedModule"))
+      : undefined,
   });
 }
 
@@ -152,10 +209,39 @@ export function generateMarketImage(params: URLSearchParams): ImageResponse {
     );
   }
 
+  // Parse optional sparkline data: sparkline=0.3,0.5,0.8,0.6,...
+  let sparklineData: number[] | undefined;
+  const sparklineRaw = params.get("sparkline");
+  if (sparklineRaw) {
+    sparklineData = sparklineRaw
+      .split(",")
+      .map(Number)
+      .filter((n) => !isNaN(n));
+  }
+
+  // Parse optional depth data
+  let depth:
+    | { buyPct: number; sellPct: number; buyQty: string; sellQty: string }
+    | undefined;
+  if (params.has("depthBuyPct")) {
+    depth = {
+      buyPct: Number(params.get("depthBuyPct") ?? "0"),
+      sellPct: Number(params.get("depthSellPct") ?? "0"),
+      buyQty: params.get("depthBuyQty") ?? "0",
+      sellQty: params.get("depthSellQty") ?? "0",
+    };
+  }
+
   return MarketScreen({
     balance: Number(params.get("balance") ?? "0"),
     alertCount: Number(params.get("alertCount") ?? "0"),
     resources,
+    sparklineData,
+    featuredResource: (params.get("featured") as ResourceKey) ?? undefined,
+    depth,
+    openOrders: params.has("openOrders")
+      ? Number(params.get("openOrders"))
+      : undefined,
   });
 }
 

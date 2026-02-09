@@ -12,19 +12,34 @@
 
 import { ImageResponse } from "@vercel/og";
 import { formatNumber, formatLunar } from "@/lib/utils";
-import { FRAME, colors, tierColors, type TierKey } from "./theme";
+import {
+  FRAME,
+  colors,
+  tierColors,
+  resourceMeta,
+  moduleMeta,
+  typography,
+  type TierKey,
+} from "./theme";
 import {
   FrameCanvas,
   Header,
   Footer,
   Section,
+  SplitLayout,
+  Panel,
   StatBadge,
+  StatRow,
   Badge,
   ModuleCard,
+  ModuleGridCell,
   PriceRow,
   ProgressBar,
   StatusBanner,
   ToastBanner,
+  Sparkline,
+  DepthBar,
+  InfoSidebar,
   LunarLogo,
   BalanceDisplay,
   LevelBadge,
@@ -93,11 +108,24 @@ export interface HomeScreenProps {
   collected: number;
   eventBanner: string;
   eventCount: number;
+  /** Optional enriched data for the new split layout */
+  crew?: number;
+  crewMax?: number;
+  streak?: number;
+  rank?: number;
+  /** Module grid cells — if provided, renders a visual mini-grid */
+  moduleGrid?: Array<{
+    type: string;
+    tier?: TierKey;
+    efficiency?: number;
+    isActive?: boolean;
+  }>;
 }
 
 export function HomeScreen(p: HomeScreenProps): ImageResponse {
   const hasCollected = p.collected > 0;
   const hasEvent = p.eventBanner !== "none" && p.eventCount > 0;
+  const hasGrid = p.moduleGrid && p.moduleGrid.length > 0;
 
   return img(
     <FrameCanvas gradient="home">
@@ -106,21 +134,9 @@ export function HomeScreen(p: HomeScreenProps): ImageResponse {
         <LevelBadge level={p.level} />
       </Header>
 
-      {/* Welcome line */}
-      <div
-        style={{
-          display: "flex",
-          fontSize: 20,
-          color: colors.text.muted,
-          marginTop: 2,
-        }}
-      >
-        Welcome back, {p.name}
-      </div>
-
-      {/* Collection toast */}
+      {/* Collection toast — persistent across layouts */}
       {hasCollected && (
-        <div style={{ display: "flex", marginTop: 14 }}>
+        <div style={{ display: "flex", marginTop: 4 }}>
           <ToastBanner
             icon="⚡"
             message={`+${formatLunar(p.collected)} collected!`}
@@ -129,39 +145,116 @@ export function HomeScreen(p: HomeScreenProps): ImageResponse {
         </div>
       )}
 
-      {/* Stats grid */}
-      <Section gap={16} flex={1} mt={hasCollected ? 16 : 28} align="stretch">
-        <StatBadge
-          icon="💰"
-          value={formatLunar(p.balance)}
-          label="Balance"
-          accentColor={colors.accent}
-        />
-        <StatBadge
-          icon="⚡"
-          value={`${formatNumber(p.production)}/tick`}
-          label="Production"
-        />
-        <StatBadge icon="🏗️" value={p.modules} label="Modules" />
-        {p.pending > 0 && (
-          <StatBadge
-            icon="⏳"
-            value={formatLunar(p.pending)}
-            label="Pending"
-            accentColor={colors.success}
-          />
-        )}
-      </Section>
+      {/* Main body — split layout */}
+      <SplitLayout mainWidth="62%" sideWidth="36%">
+        {/* LEFT: Colony status with visual grid or stat badges */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            flex: 1,
+          }}
+        >
+          {hasGrid ? (
+            <Panel title="Colony Modules">
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  gap: 6,
+                }}
+              >
+                {p.moduleGrid!.map((m, i) => (
+                  <ModuleGridCell
+                    key={i}
+                    moduleType={m.type}
+                    tier={(m.tier as TierKey) ?? "COMMON"}
+                    efficiency={m.efficiency}
+                    isActive={m.isActive}
+                  />
+                ))}
+                {/* Fill remaining slots to hint capacity */}
+                {Array.from({
+                  length: Math.max(0, 8 - p.moduleGrid!.length),
+                }).map((_, j) => (
+                  <ModuleGridCell key={`e${j}`} empty />
+                ))}
+              </div>
+            </Panel>
+          ) : (
+            <Panel title="Production Overview">
+              <Section gap={12} align="stretch" wrap>
+                <StatBadge
+                  icon="⚡"
+                  value={`${formatNumber(p.production)}/tick`}
+                  label="Production"
+                />
+                <StatBadge icon="🏗️" value={p.modules} label="Modules" />
+                {p.pending > 0 && (
+                  <StatBadge
+                    icon="⏳"
+                    value={formatLunar(p.pending)}
+                    label="Pending"
+                    accentColor={colors.success}
+                  />
+                )}
+              </Section>
+            </Panel>
+          )}
 
-      {/* Event banner */}
-      {hasEvent && (
-        <div style={{ display: "flex", marginTop: 8 }}>
-          <StatusBanner variant="warning" icon="🎉">
-            {p.eventCount} active event{p.eventCount > 1 ? "s" : ""}:{" "}
-            {formatEventName(p.eventBanner)}
-          </StatusBanner>
+          {/* Event banner under the main panel */}
+          {hasEvent && (
+            <StatusBanner variant="warning" icon="🎉">
+              {p.eventCount} active event{p.eventCount > 1 ? "s" : ""}:{" "}
+              {formatEventName(p.eventBanner)}
+            </StatusBanner>
+          )}
         </div>
-      )}
+
+        {/* RIGHT: Player info sidebar */}
+        <InfoSidebar title={`Commander ${p.name}`}>
+          <StatRow icon="🏅" label="Level" value={p.level} />
+          <StatRow
+            icon="💰"
+            label="Balance"
+            value={formatLunar(p.balance)}
+            valueColor={colors.accent}
+          />
+          <StatRow
+            icon="⚡"
+            label="Production"
+            value={`${formatNumber(p.production)}/t`}
+          />
+          {p.crew !== undefined && (
+            <StatRow
+              icon="👨‍🚀"
+              label="Crew"
+              value={`${p.crew}/${p.crewMax ?? "—"}`}
+            />
+          )}
+          {p.streak !== undefined && (
+            <StatRow
+              icon="🔥"
+              label="Streak"
+              value={`${p.streak}d`}
+              valueColor={p.streak >= 7 ? colors.warning : undefined}
+            />
+          )}
+          {p.rank !== undefined && (
+            <StatRow icon="🏆" label="Rank" value={`#${p.rank}`} />
+          )}
+          {p.pending > 0 && (
+            <StatRow
+              icon="⏳"
+              label="Pending"
+              value={formatLunar(p.pending)}
+              valueColor={colors.success}
+            />
+          )}
+        </InfoSidebar>
+      </SplitLayout>
 
       <Footer>Btn 1: Produce · 2: Colony · 3: Market · 4: Alliance</Footer>
     </FrameCanvas>,
@@ -178,9 +271,25 @@ export interface ColonyScreenProps {
   production: number;
   moduleCount: string;
   modules: Array<{ type: string; count: number; tier?: TierKey }>;
+  /** Enriched per-module data for the visual grid layout */
+  moduleGrid?: Array<{
+    type: string;
+    tier?: TierKey;
+    efficiency?: number;
+    isActive?: boolean;
+    level?: number;
+  }>;
+  /** Index of the selected module in moduleGrid for detail panel */
+  selectedModule?: number;
 }
 
 export function ColonyScreen(p: ColonyScreenProps): ImageResponse {
+  const hasGrid = p.moduleGrid && p.moduleGrid.length > 0;
+  const selected =
+    hasGrid && p.selectedModule !== undefined
+      ? p.moduleGrid![p.selectedModule]
+      : undefined;
+
   return img(
     <FrameCanvas gradient="colony">
       <Header icon="🏗️" title="YOUR COLONY">
@@ -188,45 +297,182 @@ export function ColonyScreen(p: ColonyScreenProps): ImageResponse {
         <BalanceDisplay amount={formatNumber(p.balance)} size="sm" />
       </Header>
 
-      {/* Module grid */}
-      <Section direction="row" wrap gap={10} flex={1} mt={20}>
-        {p.modules.length > 0 ? (
-          p.modules.map((m, i) => (
-            <ModuleCard
-              key={i}
-              moduleType={m.type}
-              tier={m.tier ?? "COMMON"}
-              count={m.count}
-              compact
-            />
-          ))
-        ) : (
+      {hasGrid ? (
+        /* ─── New: visual grid + detail split ─── */
+        <SplitLayout mainWidth="60%" sideWidth="38%">
+          {/* LEFT: 6-wide module grid */}
+          <Panel title={`Colony Grid · ${p.moduleCount} modules`} flex={1}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: 6,
+              }}
+            >
+              {p.moduleGrid!.map((m, i) => (
+                <ModuleGridCell
+                  key={i}
+                  moduleType={m.type}
+                  tier={(m.tier as TierKey) ?? "COMMON"}
+                  efficiency={m.efficiency}
+                  isActive={m.isActive}
+                  selected={i === p.selectedModule}
+                />
+              ))}
+              {/* Empty placeholders to fill a 6-wide row */}
+              {Array.from({
+                length: Math.max(0, (6 - (p.moduleGrid!.length % 6)) % 6),
+              }).map((_, j) => (
+                <ModuleGridCell key={`e${j}`} empty />
+              ))}
+            </div>
+            {/* Aggregate summary */}
+            <div
+              style={{
+                display: "flex",
+                fontSize: 13,
+                color: colors.text.muted,
+                marginTop: 4,
+              }}
+            >
+              ⚡ {formatNumber(p.production)}/tick · 🏗️ {p.moduleCount} active
+            </div>
+          </Panel>
+
+          {/* RIGHT: selected module detail or overview */}
+          {selected ? (
+            <Panel title="Module Detail" flex={1}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "8px 0",
+                }}
+              >
+                <ModuleGridCell
+                  moduleType={selected.type}
+                  tier={(selected.tier as TierKey) ?? "COMMON"}
+                  efficiency={selected.efficiency}
+                  isActive={selected.isActive}
+                />
+                <span
+                  style={{
+                    display: "flex",
+                    ...typography.subtitle,
+                    textTransform: "capitalize",
+                  }}
+                >
+                  {selected.type.replace(/_/g, " ").toLowerCase()}
+                </span>
+              </div>
+              <StatRow
+                icon="📊"
+                label="Efficiency"
+                value={`${selected.efficiency ?? 100}%`}
+                valueColor={
+                  (selected.efficiency ?? 100) >= 80
+                    ? colors.success
+                    : (selected.efficiency ?? 100) >= 50
+                      ? colors.warning
+                      : colors.error
+                }
+              />
+              <StatRow
+                icon="⭐"
+                label="Tier"
+                value={selected.tier ?? "COMMON"}
+                valueColor={
+                  tierColors[(selected.tier as TierKey) ?? "COMMON"].border
+                }
+              />
+              {selected.level !== undefined && (
+                <StatRow
+                  icon="🔧"
+                  label="Level"
+                  value={String(selected.level)}
+                />
+              )}
+              <StatRow
+                icon="🔌"
+                label="Status"
+                value={selected.isActive === false ? "Offline" : "Online"}
+                valueColor={
+                  selected.isActive === false ? colors.error : colors.success
+                }
+              />
+            </Panel>
+          ) : (
+            <InfoSidebar title="Colony Stats">
+              <StatRow
+                icon="⚡"
+                label="Production"
+                value={`${formatNumber(p.production)}/t`}
+              />
+              <StatRow icon="🏗️" label="Modules" value={p.moduleCount} />
+              <StatRow
+                icon="💰"
+                label="Balance"
+                value={formatLunar(p.balance)}
+                valueColor={colors.accent}
+              />
+              {p.modules.map((m, i) => (
+                <StatRow
+                  key={i}
+                  icon={
+                    moduleMeta[m.type as keyof typeof moduleMeta]?.icon ?? "📦"
+                  }
+                  label={m.type.replace(/_/g, " ").toLowerCase()}
+                  value={`×${m.count}`}
+                />
+              ))}
+            </InfoSidebar>
+          )}
+        </SplitLayout>
+      ) : (
+        /* ─── Fallback: legacy compact card list ─── */
+        <>
+          <Section direction="row" wrap gap={10} flex={1} mt={20}>
+            {p.modules.length > 0 ? (
+              p.modules.map((m, i) => (
+                <ModuleCard
+                  key={i}
+                  moduleType={m.type}
+                  tier={m.tier ?? "COMMON"}
+                  count={m.count}
+                  compact
+                />
+              ))
+            ) : (
+              <div
+                style={{
+                  display: "flex",
+                  fontSize: 22,
+                  color: colors.text.muted,
+                }}
+              >
+                No modules yet — build your first one!
+              </div>
+            )}
+          </Section>
+
           <div
             style={{
               display: "flex",
-              fontSize: 22,
-              color: colors.text.muted,
+              justifyContent: "space-between",
+              fontSize: 18,
+              color: colors.text.secondary,
+              marginTop: 10,
             }}
           >
-            No modules yet — build your first one!
+            <span style={{ display: "flex" }}>
+              📊 {p.moduleCount} modules · ⚡ {formatNumber(p.production)}/tick
+            </span>
           </div>
-        )}
-      </Section>
-
-      {/* Summary bar */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          fontSize: 18,
-          color: colors.text.secondary,
-          marginTop: 10,
-        }}
-      >
-        <span style={{ display: "flex" }}>
-          📊 {p.moduleCount} modules · ⚡ {formatNumber(p.production)}/tick
-        </span>
-      </div>
+        </>
+      )}
 
       <Footer>Btn 1: Build · 2: Upgrade · 3: Stats · 4: Home</Footer>
     </FrameCanvas>,
@@ -370,9 +616,21 @@ export interface MarketScreenProps {
   balance: number;
   alertCount: number;
   resources: MarketResource[];
+  /** Optional 24 h price history for the featured resource (normalised 0-1) */
+  sparklineData?: number[];
+  /** Featured resource key (first resource used if omitted) */
+  featuredResource?: ResourceKey;
+  /** Buy/sell depth data for featured resource */
+  depth?: { buyPct: number; sellPct: number; buyQty: string; sellQty: string };
+  /** Player's open orders summary */
+  openOrders?: number;
 }
 
 export function MarketScreen(p: MarketScreenProps): ImageResponse {
+  const hasSparkline = p.sparklineData && p.sparklineData.length > 0;
+  const featured = p.featuredResource ?? p.resources[0]?.resource;
+  const featuredRow = p.resources.find((r) => r.resource === featured);
+
   return img(
     <FrameCanvas gradient="market">
       <Header icon="📈" title="LUNAR MARKET">
@@ -384,17 +642,150 @@ export function MarketScreen(p: MarketScreenProps): ImageResponse {
         )}
       </Header>
 
-      <Section direction="column" gap={10} flex={1} mt={18}>
-        {p.resources.map((r, i) => (
-          <PriceRow
-            key={i}
-            resource={r.resource}
-            price={r.price}
-            changePercent={r.changePercent}
-            trend={r.trend}
-          />
-        ))}
-      </Section>
+      {hasSparkline ? (
+        /* ─── New: sparkline + depth + price list split ─── */
+        <SplitLayout mainWidth="58%" sideWidth="40%">
+          {/* LEFT: chart + depth for featured resource */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              flex: 1,
+            }}
+          >
+            {/* Sparkline chart */}
+            <Panel
+              title={`${featuredRow ? (featuredRow.resource as string) : String(featured)} · 24 h`}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "row",
+                  alignItems: "flex-end",
+                  gap: 12,
+                }}
+              >
+                <Sparkline
+                  data={p.sparklineData!}
+                  color={
+                    featuredRow?.trend === "up"
+                      ? colors.success
+                      : featuredRow?.trend === "down"
+                        ? colors.error
+                        : colors.accent
+                  }
+                  height={52}
+                  barWidth={4}
+                  gap={1}
+                />
+                {/* Live price callout */}
+                {featuredRow && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-end",
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "flex",
+                        ...typography.mono,
+                        fontSize: 22,
+                        fontWeight: 700,
+                        color: colors.text.primary,
+                      }}
+                    >
+                      {featuredRow.price} $L
+                    </span>
+                    <span
+                      style={{
+                        display: "flex",
+                        ...typography.mono,
+                        fontSize: 13,
+                        color:
+                          featuredRow.trend === "up"
+                            ? colors.success
+                            : featuredRow.trend === "down"
+                              ? colors.error
+                              : colors.text.muted,
+                      }}
+                    >
+                      {featuredRow.changePercent}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </Panel>
+
+            {/* Depth bar */}
+            {p.depth && (
+              <Panel title="Market Depth">
+                <DepthBar
+                  buyPct={p.depth.buyPct}
+                  sellPct={p.depth.sellPct}
+                  buyLabel={`Buy ${p.depth.buyQty}`}
+                  sellLabel={`Sell ${p.depth.sellQty}`}
+                />
+              </Panel>
+            )}
+
+            {/* Open orders */}
+            {p.openOrders !== undefined && p.openOrders > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  fontSize: 13,
+                  color: colors.text.muted,
+                }}
+              >
+                📋 {p.openOrders} open order{p.openOrders > 1 ? "s" : ""}
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT: price list for all resources */}
+          <Panel title="All Resources" flex={1}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+              }}
+            >
+              {p.resources.map((r, i) => (
+                <StatRow
+                  key={i}
+                  icon={resourceMeta[r.resource]?.icon ?? "💎"}
+                  label={resourceMeta[r.resource]?.label ?? String(r.resource)}
+                  value={`${r.price} $L`}
+                  trend={
+                    r.trend === "up"
+                      ? "up"
+                      : r.trend === "down"
+                        ? "down"
+                        : "flat"
+                  }
+                />
+              ))}
+            </div>
+          </Panel>
+        </SplitLayout>
+      ) : (
+        /* ─── Fallback: classic price row list ─── */
+        <Section direction="column" gap={10} flex={1} mt={18}>
+          {p.resources.map((r, i) => (
+            <PriceRow
+              key={i}
+              resource={r.resource}
+              price={r.price}
+              changePercent={r.changePercent}
+              trend={r.trend}
+            />
+          ))}
+        </Section>
+      )}
 
       <Footer>Btn 1: Buy · 2: Sell · 3: Prices · 4: Home</Footer>
     </FrameCanvas>,

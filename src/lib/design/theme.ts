@@ -41,6 +41,7 @@ export const colors = {
     light: "rgba(255,255,255,0.06)",
     medium: "rgba(255,255,255,0.10)",
     heavy: "rgba(255,255,255,0.16)",
+    card: "rgba(255,255,255,0.04)",
   },
 
   /** Status glow colours (for borders / accents) */

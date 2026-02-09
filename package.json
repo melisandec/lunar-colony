@@ -27,11 +27,15 @@
     "@neynar/nodejs-sdk": "^3.131.0",
     "@prisma/adapter-neon": "^7.3.0",
     "@prisma/client": "^7.3.0",
+    "@tanstack/react-query": "^5.90.20",
     "@vercel/og": "^0.8.6",
+    "framer-motion": "^12.33.0",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "viem": "^2.45.2"
+    "recharts": "^3.7.0",
+    "viem": "^2.45.2",
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -6,10 +6,11 @@
  * (Satori requirement) and reference the central design tokens.
  *
  * Components:
- *   Layout       — FrameCanvas, Header, Footer, Section, Divider
- *   Data display — StatBadge, ResourceIndicator, ModuleCard, PriceRow
+ *   Layout       — FrameCanvas, SplitLayout, Header, Footer, Section, Divider, Panel
+ *   Data display — StatBadge, StatRow, ResourceIndicator, ModuleCard, ModuleGridCell,
+ *                  PriceRow, Sparkline, DepthBar, InfoSidebar
  *   Feedback     — ProgressBar, StatusBanner, ToastBanner
- *   Decoration   — GlowBorder, StarField, LunarLogo
+ *   Decoration   — GlowBorder, LunarLogo, BalanceDisplay, LevelBadge
  */
 
 import {
@@ -199,6 +200,428 @@ export function Divider() {
         margin: `${spacing.sm}px 0`,
       }}
     />
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADVANCED LAYOUT
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Two-column split layout: main content (left) + sidebar (right).
+ * Uses a glass divider between panels.
+ */
+export function SplitLayout({
+  mainWidth = "63%",
+  sideWidth = "35%",
+  children,
+}: {
+  mainWidth?: string;
+  sideWidth?: string;
+  children: [React.ReactNode, React.ReactNode];
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "row",
+        width: "100%",
+        flex: 1,
+        gap: spacing.sm,
+      }}
+    >
+      {/* Main panel */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          width: mainWidth,
+          flex: 1,
+        }}
+      >
+        {children[0]}
+      </div>
+      {/* Vertical glass divider */}
+      <div
+        style={{
+          display: "flex",
+          width: 1,
+          background: `linear-gradient(to bottom, transparent, ${colors.glass.medium}, transparent)`,
+        }}
+      />
+      {/* Sidebar panel */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          width: sideWidth,
+        }}
+      >
+        {children[1]}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Glass-morphism card panel with optional title.
+ * Wraps a section of content with a frosted-glass look.
+ */
+export function Panel({
+  title,
+  children,
+  flex,
+  padding,
+}: {
+  title?: string;
+  children: React.ReactNode;
+  flex?: number;
+  padding?: number;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        background: colors.glass.card,
+        borderRadius: radii.lg,
+        border: `1px solid ${colors.glass.light}`,
+        padding: padding ?? spacing.sm,
+        gap: spacing.xs,
+        ...(flex !== undefined ? { flex } : {}),
+      }}
+    >
+      {title && (
+        <span
+          style={{
+            display: "flex",
+            ...typography.caption,
+            color: colors.text.muted,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+          }}
+        >
+          {title}
+        </span>
+      )}
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Small visual cell for a module grid.
+ * Shows the module icon + tier-coloured border + efficiency indicator ring.
+ * If `empty` is true, renders a dashed placeholder.
+ */
+export function ModuleGridCell({
+  moduleType,
+  tier,
+  efficiency,
+  isActive,
+  empty,
+  selected,
+}: {
+  moduleType?: string;
+  tier?: TierKey;
+  efficiency?: number;
+  isActive?: boolean;
+  empty?: boolean;
+  selected?: boolean;
+}) {
+  if (empty) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          width: 44,
+          height: 44,
+          borderRadius: radii.md,
+          border: `1px dashed ${colors.glass.light}`,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <span style={{ display: "flex", fontSize: 14, opacity: 0.3 }}>+</span>
+      </div>
+    );
+  }
+
+  const meta = moduleType
+    ? moduleMeta[moduleType as keyof typeof moduleMeta]
+    : undefined;
+  const tierColor = tier ? tierColors[tier] : tierColors.COMMON;
+  const effPct = efficiency ?? 100;
+  // Map efficiency to colour: ≥80 green, ≥50 yellow, else red
+  const effColor =
+    effPct >= 80
+      ? colors.success
+      : effPct >= 50
+        ? colors.warning
+        : colors.error;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        position: "relative",
+        width: 44,
+        height: 44,
+        borderRadius: radii.md,
+        border: `2px solid ${selected ? colors.accent : tierColor.border}`,
+        background: selected ? `${colors.accent}18` : tierColor.bg,
+        alignItems: "center",
+        justifyContent: "center",
+        opacity: isActive === false ? 0.45 : 1,
+      }}
+    >
+      <span style={{ display: "flex", fontSize: 20 }}>
+        {meta?.icon ?? "📦"}
+      </span>
+      {/* Tiny efficiency dot — bottom-right */}
+      <div
+        style={{
+          display: "flex",
+          position: "absolute",
+          bottom: -2,
+          right: -2,
+          width: 8,
+          height: 8,
+          borderRadius: 4,
+          background: effColor,
+          border: `1px solid ${colors.surface.base}`,
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * Horizontal bar-chart sparkline for 24-hour price history.
+ * Uses stacked divs (Satori has no SVG support in @vercel/og).
+ * `data` is an array of normalised 0-1 values.
+ */
+export function Sparkline({
+  data,
+  color = colors.accent,
+  height = 48,
+  barWidth = 3,
+  gap = 1,
+}: {
+  data: number[];
+  color?: string;
+  height?: number;
+  barWidth?: number;
+  gap?: number;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "flex-end",
+        height,
+        gap,
+      }}
+    >
+      {data.map((v, i) => (
+        <div
+          key={i}
+          style={{
+            display: "flex",
+            width: barWidth,
+            height: Math.max(2, Math.round(v * height)),
+            borderRadius: 1,
+            background: i === data.length - 1 ? colors.text.primary : color,
+            opacity: 0.55 + v * 0.45,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Market depth bar: paired buy (green) / sell (red) visual.
+ * `buyPct` and `sellPct` are 0-1 normalised to the max depth.
+ */
+export function DepthBar({
+  buyPct,
+  sellPct,
+  buyLabel,
+  sellLabel,
+  height = 18,
+}: {
+  buyPct: number;
+  sellPct: number;
+  buyLabel?: string;
+  sellLabel?: string;
+  height?: number;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        width: "100%",
+      }}
+    >
+      {/* Buy side */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: spacing.xs,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            height,
+            width: `${Math.max(4, buyPct * 100)}%`,
+            background: `linear-gradient(to right, ${colors.success}44, ${colors.success})`,
+            borderRadius: radii.sm,
+          }}
+        />
+        {buyLabel && (
+          <span
+            style={{
+              display: "flex",
+              ...typography.caption,
+              color: colors.success,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {buyLabel}
+          </span>
+        )}
+      </div>
+      {/* Sell side */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: spacing.xs,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            height,
+            width: `${Math.max(4, sellPct * 100)}%`,
+            background: `linear-gradient(to right, ${colors.error}44, ${colors.error})`,
+            borderRadius: radii.sm,
+          }}
+        />
+        {sellLabel && (
+          <span
+            style={{
+              display: "flex",
+              ...typography.caption,
+              color: colors.error,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {sellLabel}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Sidebar-style vertical stack of StatRow items.
+ * Wraps rows inside a glass Panel.
+ */
+export function InfoSidebar({
+  title,
+  children,
+}: {
+  title?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Panel title={title} flex={1}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: spacing.xs,
+        }}
+      >
+        {children}
+      </div>
+    </Panel>
+  );
+}
+
+/**
+ * Horizontal label → value row with optional trend icon.
+ * Designed for use inside InfoSidebar.
+ */
+export function StatRow({
+  label,
+  value,
+  icon,
+  trend,
+  valueColor,
+}: {
+  label: string;
+  value: string | number;
+  icon?: string;
+  trend?: "up" | "down" | "flat";
+  valueColor?: string;
+}) {
+  const trendIcon = trend === "up" ? "▲" : trend === "down" ? "▼" : "";
+  const trendColor =
+    trend === "up"
+      ? colors.success
+      : trend === "down"
+        ? colors.error
+        : colors.text.muted;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: `${spacing.xs / 2}px 0`,
+      }}
+    >
+      <span
+        style={{
+          display: "flex",
+          ...typography.caption,
+          color: colors.text.muted,
+          gap: 4,
+        }}
+      >
+        {icon && <span style={{ display: "flex" }}>{icon}</span>}
+        {label}
+      </span>
+      <span
+        style={{
+          display: "flex",
+          ...typography.mono,
+          fontSize: 13,
+          color: valueColor ?? colors.text.primary,
+          gap: 3,
+        }}
+      >
+        {value}
+        {trendIcon && (
+          <span style={{ display: "flex", fontSize: 9, color: trendColor }}>
+            {trendIcon}
+          </span>
+        )}
+      </span>
+    </div>
   );
 }
 
