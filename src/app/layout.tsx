@@ -23,7 +23,7 @@ const miniAppEmbed = {
     action: {
       type: "launch_miniapp",
       name: "Lunar Colony Tycoon",
-      url: appUrl,
+      url: `${appUrl}/dashboard`,
       splashImageUrl: `${appUrl}/splash.png`,
       splashBackgroundColor: "#0a0a1a",
     },
