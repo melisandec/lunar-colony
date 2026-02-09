@@ -22,7 +22,6 @@ import {
   PRODUCTION_RUSH_MODIFIERS,
   calculateModuleCost,
   calculateROI,
-  simulateProductionTicks,
 } from "../helpers/factories";
 import type { ModuleProductionRow } from "@/lib/production-engine";
 import type { ModifierSet } from "@/lib/event-engine";
@@ -102,10 +101,6 @@ function calcOutput(
   }
   return { output: output * eventMultiplier };
 }
-
-// Production runs once per cron (every 15 min) — 96 ticks per day
-const TICKS_PER_DAY = 96;
-const TICKS_PER_WEEK = TICKS_PER_DAY * 7;
 
 // =========================================================================
 // 1. New Player First Day Earnings (25-50 LUNAR target)

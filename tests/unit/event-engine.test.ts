@@ -6,11 +6,7 @@
  */
 
 import { prismaMock, resetPrismaMock } from "../helpers/prisma-mock";
-import {
-  createModifierSet,
-  EMPTY_MODIFIERS,
-  runMonteCarlo,
-} from "../helpers/factories";
+import { createModifierSet, EMPTY_MODIFIERS } from "../helpers/factories";
 
 // Import engine after mocks
 const eventEngine =
@@ -49,14 +45,14 @@ describe("Event definitions", () => {
     test(`${type} is defined with valid structure`, () => {
       const def = EVENT_DEFINITIONS[type];
       expect(def).toBeDefined();
-      expect(def.name).toBeTruthy();
-      expect(def.description).toBeTruthy();
-      expect(def.icon).toBeTruthy();
-      expect(def.durationMs).toBeGreaterThan(0);
-      expect(def.rewardPool).toBeGreaterThanOrEqual(0);
-      expect(def.category).toMatch(/^(SCHEDULED|RANDOM|TRIGGERED)$/);
-      expect(def.modifiers).toBeDefined();
-      expect(typeof def.modifiers).toBe("object");
+      expect(def!.name).toBeTruthy();
+      expect(def!.description).toBeTruthy();
+      expect(def!.icon).toBeTruthy();
+      expect(def!.durationMs).toBeGreaterThan(0);
+      expect(def!.rewardPool).toBeGreaterThanOrEqual(0);
+      expect(def!.category).toMatch(/^(SCHEDULED|RANDOM|TRIGGERED)$/);
+      expect(def!.modifiers).toBeDefined();
+      expect(typeof def!.modifiers).toBe("object");
     });
   }
 
@@ -242,7 +238,7 @@ describe("getPlayerEventModifiers", () => {
 
 describe("Random event probability distributions", () => {
   test("SOLAR_FLARE: ~1% trigger rate over 10K rolls", () => {
-    const probability = EVENT_DEFINITIONS.SOLAR_FLARE.probability!;
+    const probability = EVENT_DEFINITIONS.SOLAR_FLARE!.probability!;
     let triggers = 0;
     const trials = 10000;
 
@@ -257,7 +253,7 @@ describe("Random event probability distributions", () => {
   });
 
   test("METEOR_SHOWER: ~0.5% trigger rate over 10K rolls", () => {
-    const probability = EVENT_DEFINITIONS.METEOR_SHOWER.probability!;
+    const probability = EVENT_DEFINITIONS.METEOR_SHOWER!.probability!;
     let triggers = 0;
     const trials = 10000;
 
@@ -271,7 +267,7 @@ describe("Random event probability distributions", () => {
   });
 
   test("EQUIPMENT_SURPLUS: ~2% trigger rate over 10K rolls", () => {
-    const probability = EVENT_DEFINITIONS.EQUIPMENT_SURPLUS.probability!;
+    const probability = EVENT_DEFINITIONS.EQUIPMENT_SURPLUS!.probability!;
     let triggers = 0;
     const trials = 10000;
 
@@ -285,7 +281,7 @@ describe("Random event probability distributions", () => {
   });
 
   test("EARTH_CONTRACT: ~0.2% trigger rate over 50K rolls", () => {
-    const probability = EVENT_DEFINITIONS.EARTH_CONTRACT.probability!;
+    const probability = EVENT_DEFINITIONS.EARTH_CONTRACT!.probability!;
     let triggers = 0;
     const trials = 50000;
 
@@ -314,31 +310,31 @@ describe("Random event probability distributions", () => {
 
 describe("Event modifier effects sanity", () => {
   test("PRODUCTION_RUSH boosts output (all modifiers > 1.0)", () => {
-    const def = EVENT_DEFINITIONS.PRODUCTION_RUSH;
+    const def = EVENT_DEFINITIONS.PRODUCTION_RUSH!;
     for (const value of Object.values(def.modifiers)) {
       expect(value).toBeGreaterThan(1.0);
     }
   });
 
   test("SOLAR_FLARE has negative modifiers (< 1.0) for solar", () => {
-    const def = EVENT_DEFINITIONS.SOLAR_FLARE;
+    const def = EVENT_DEFINITIONS.SOLAR_FLARE!;
     expect(def.modifiers["SOLAR_PANEL_OUTPUT"]).toBeLessThan(1.0);
     // But storage gets a buff
     expect(def.modifiers["STORAGE_DEPOT_OUTPUT"]).toBeGreaterThan(1.0);
   });
 
   test("EFFICIENCY_CHALLENGE reduces build costs (modifier < 1.0)", () => {
-    const def = EVENT_DEFINITIONS.EFFICIENCY_CHALLENGE;
+    const def = EVENT_DEFINITIONS.EFFICIENCY_CHALLENGE!;
     expect(def.modifiers["GLOBAL_BUILD_COST"]).toBeLessThan(1.0);
   });
 
   test("EARTH_CONTRACT boosts sell prices significantly", () => {
-    const def = EVENT_DEFINITIONS.EARTH_CONTRACT;
+    const def = EVENT_DEFINITIONS.EARTH_CONTRACT!;
     expect(def.modifiers["SELL_PRICE_MULTIPLIER"]).toBeGreaterThanOrEqual(2.0);
   });
 
   test("METEOR_SHOWER boosts MINING_RIG output", () => {
-    const def = EVENT_DEFINITIONS.METEOR_SHOWER;
+    const def = EVENT_DEFINITIONS.METEOR_SHOWER!;
     expect(def.modifiers["MINING_RIG_OUTPUT"]).toBeGreaterThan(1.0);
   });
 });

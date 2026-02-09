@@ -10,7 +10,6 @@
  */
 
 import { prismaMock, resetPrismaMock } from "../helpers/prisma-mock";
-import { createResourcePrice, runMonteCarlo } from "../helpers/factories";
 import type { ResourceType } from "@/lib/utils";
 
 // Import engine after mocks
@@ -233,7 +232,6 @@ describe("Price behavior (statistical)", () => {
   });
 
   test("LUNAR price is very stable (tight range around 1.0)", () => {
-    const config = RESOURCE_CONFIGS.LUNAR;
     const prices = simulatePriceWalk("LUNAR", 1.0, 500);
     const deviations = prices.map((p) => Math.abs(p - 1.0));
     const maxDeviation = Math.max(...deviations);

@@ -12,11 +12,7 @@
  */
 
 import { prismaMock, resetPrismaMock } from "../helpers/prisma-mock";
-import {
-  createModule,
-  createStarterColony,
-  createEndGameColony,
-} from "../helpers/factories";
+import { createStarterColony, createEndGameColony } from "../helpers/factories";
 
 // Import after mocks
 const { calculatePlayerProduction } =
