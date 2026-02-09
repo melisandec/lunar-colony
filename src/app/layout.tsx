@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { FarcasterProvider } from "@/components/farcaster-provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,6 +15,21 @@ const geistMono = Geist_Mono({
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
+const miniAppEmbed = {
+  version: "1",
+  imageUrl: `${appUrl}/api/frames/image`,
+  button: {
+    title: "🚀 Play Now",
+    action: {
+      type: "launch_miniapp",
+      name: "Lunar Colony Tycoon",
+      url: appUrl,
+      splashImageUrl: `${appUrl}/splash.png`,
+      splashBackgroundColor: "#0a0a1a",
+    },
+  },
+};
+
 export const metadata: Metadata = {
   title: "Lunar Colony Tycoon",
   description:
@@ -21,18 +37,13 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Lunar Colony Tycoon",
     description: "Build your lunar industrial empire on Farcaster",
-    images: [`${appUrl}/api/frames?img=landing`],
+    images: [`${appUrl}/api/frames/image`],
   },
   other: {
-    // Farcaster Frame meta tags
-    "fc:frame": "vNext",
-    "fc:frame:image": `${appUrl}/api/frames?img=landing`,
-    "fc:frame:image:aspect_ratio": "1.91:1",
-    "fc:frame:post_url": `${appUrl}/api/frames`,
-    "fc:frame:button:1": "🚀 Play Now",
-    "fc:frame:button:1:action": "post",
-    "fc:frame:button:2": "📊 Leaderboard",
-    "fc:frame:button:2:action": "post",
+    // Farcaster Mini App meta tag (current standard)
+    "fc:miniapp": JSON.stringify(miniAppEmbed),
+    // Backward compatibility for legacy clients
+    "fc:frame": JSON.stringify(miniAppEmbed),
   },
 };
 
@@ -46,7 +57,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <FarcasterProvider>{children}</FarcasterProvider>
       </body>
     </html>
   );

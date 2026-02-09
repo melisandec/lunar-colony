@@ -1,0 +1,26 @@
+{
+  "accountAssociation": {
+    "header": "",
+    "payload": "",
+    "signature": ""
+  },
+  "miniapp": {
+    "version": "1",
+    "name": "Lunar Colony Tycoon",
+    "iconUrl": "https://lunar-colony.vercel.app/icon.png",
+    "homeUrl": "https://lunar-colony.vercel.app",
+    "splashImageUrl": "https://lunar-colony.vercel.app/splash.png",
+    "splashBackgroundColor": "#0a0a1a",
+    "webhookUrl": "https://lunar-colony.vercel.app/api/webhook",
+    "subtitle": "Build your lunar empire",
+    "description": "Build and manage a lunar industrial colony. Mine resources, trade on the market, survive random events, and climb the leaderboard.",
+    "primaryCategory": "games",
+    "tags": ["tycoon", "colony", "strategy", "lunar", "building"],
+    "tagline": "Mine. Build. Dominate the Moon.",
+    "ogTitle": "Lunar Colony Tycoon",
+    "ogDescription": "Build your lunar industrial empire and earn $LUNAR tokens on Farcaster!",
+    "ogImageUrl": "https://lunar-colony.vercel.app/og-image.png",
+    "requiredChains": ["eip155:8453"],
+    "requiredCapabilities": ["actions.signIn", "wallet.getEthereumProvider"]
+  }
+}
