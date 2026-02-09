@@ -12,19 +12,37 @@ interface Shortcut {
 
 /**
  * Register global keyboard shortcuts.
- * Shortcuts are disabled when an input/textarea is focused.
+ * Shortcuts are disabled when:
+ * - An input/textarea/select/contenteditable element is focused
+ * - A modal or dialog is open (role="dialog" present in DOM)
  */
 export function useKeyboardShortcuts(shortcuts: Shortcut[]) {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      // Skip when user is typing in an input
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      const target = e.target as HTMLElement;
+
+      // Skip when user is typing in an editable field
+      const tag = target.tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        target.isContentEditable
+      )
+        return;
+
+      // Skip when a modal/dialog is open (prevent shortcuts behind dialogs)
+      const activeDialog = document.querySelector(
+        '[role="dialog"][aria-modal="true"]',
+      );
+      if (activeDialog && !activeDialog.contains(target)) return;
 
       for (const s of shortcuts) {
         const keyMatch = e.key.toLowerCase() === s.key.toLowerCase();
-        const ctrlMatch = s.ctrl ? e.ctrlKey || e.metaKey : true;
-        const shiftMatch = s.shift ? e.shiftKey : true;
+        const ctrlMatch = s.ctrl
+          ? e.ctrlKey || e.metaKey
+          : !e.ctrlKey && !e.metaKey;
+        const shiftMatch = s.shift ? e.shiftKey : !e.shiftKey;
 
         if (keyMatch && ctrlMatch && shiftMatch) {
           e.preventDefault();
@@ -41,7 +59,7 @@ export function useKeyboardShortcuts(shortcuts: Shortcut[]) {
 
 /** Pre-defined shortcut keys for the dashboard */
 export const DASHBOARD_SHORTCUTS = {
-  COLLECT: { key: " ", description: "Collect production" },
+  COLLECT: { key: "e", description: "Collect earnings" },
   BUILD: { key: "b", description: "Build module" },
   MARKET: { key: "m", description: "Market terminal" },
   RESEARCH: { key: "r", description: "Research tree" },

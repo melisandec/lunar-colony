@@ -3,6 +3,7 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --a11y-text-scale: 1;
 }
 
 @theme inline {
@@ -23,9 +24,133 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  font-size: calc(1rem * var(--a11y-text-scale));
 }
 
-/* ---- Dashboard theme ---- */
+/* =========================================================================
+   ACCESSIBILITY — Global foundations
+   ========================================================================= */
+
+/* ---- Focus management ---- */
+*:focus-visible {
+  outline: 2px solid rgb(6, 182, 212);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* High-contrast focus ring override */
+[data-contrast="high"] *:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+
+/* Skip-to-content link (hidden until focused) */
+.skip-link {
+  position: fixed;
+  top: -100%;
+  left: 50%;
+  z-index: 200;
+  transform: translateX(-50%);
+  background: rgb(6, 182, 212);
+  color: #000;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0 0 0.5rem 0.5rem;
+  font-weight: 700;
+  font-size: 0.875rem;
+  text-decoration: none;
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: 0;
+}
+
+/* ---- Reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+[data-reduced-motion="true"] *,
+[data-reduced-motion="true"] *::before,
+[data-reduced-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* ---- High-contrast mode ---- */
+[data-contrast="high"] {
+  --foreground: #ffffff;
+}
+
+[data-contrast="high"] .border-slate-800,
+[data-contrast="high"] .border-slate-800\/40,
+[data-contrast="high"] .border-slate-800\/60 {
+  border-color: rgba(148, 163, 184, 0.6);
+}
+
+[data-contrast="high"] .text-slate-400 {
+  color: rgb(226, 232, 240);
+}
+[data-contrast="high"] .text-slate-500 {
+  color: rgb(203, 213, 225);
+}
+[data-contrast="high"] .text-slate-600 {
+  color: rgb(148, 163, 184);
+}
+
+[data-contrast="high"] .bg-slate-900\/50,
+[data-contrast="high"] .bg-slate-950\/80 {
+  background-color: rgba(2, 6, 23, 0.95);
+}
+
+/* ---- Colorblind-safe mode ---- */
+
+/* Replace red/green indicators with blue/orange */
+[data-colorblind]:not([data-colorblind="none"]) .bg-emerald-400 {
+  background-color: rgb(96, 165, 250);
+}
+[data-colorblind]:not([data-colorblind="none"]) .text-emerald-400 {
+  color: rgb(96, 165, 250);
+}
+[data-colorblind]:not([data-colorblind="none"]) .bg-red-400 {
+  background-color: rgb(251, 146, 60);
+}
+[data-colorblind]:not([data-colorblind="none"]) .text-red-400 {
+  color: rgb(251, 146, 60);
+}
+
+/* ---- Large touch targets ---- */
+[data-large-targets="true"] button,
+[data-large-targets="true"] a[role="button"],
+[data-large-targets="true"] [role="button"] {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+/* ---- Screen reader only ---- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* =========================================================================
+   DASHBOARD THEME
+   ========================================================================= */
 
 /* Custom scrollbar */
 .dashboard-scroll::-webkit-scrollbar {
@@ -106,4 +231,138 @@ body {
 }
 .pulse-ring {
   animation: pulseRing 2s infinite;
+}
+
+/* =========================================================================
+   MICROINTERACTION KEYFRAMES
+   ========================================================================= */
+
+/* Shimmer/shine sweep (for buttons, cards) */
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+.shimmer-hover:hover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* Coin spin for Frame images (CSS-only) */
+@keyframes coinSpin {
+  0% {
+    transform: rotateY(0deg) scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: rotateY(180deg) scale(1.1);
+  }
+  100% {
+    transform: rotateY(360deg) scale(1);
+    opacity: 1;
+  }
+}
+.animate-coin-spin {
+  animation: coinSpin 0.8s ease-in-out;
+  perspective: 200px;
+}
+
+/* Bounce-in for newly built modules */
+@keyframes bounceIn {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  75% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.animate-bounce-in {
+  animation: bounceIn 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Floating effect for idle modules */
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Glow pulse for highlighted elements */
+@keyframes glowPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(6, 182, 212, 0.4);
+  }
+}
+.animate-glow-pulse {
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+/* Ticker flash for price changes */
+@keyframes tickerFlashUp {
+  0% {
+    background-color: rgba(16, 185, 129, 0.3);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+@keyframes tickerFlashDown {
+  0% {
+    background-color: rgba(239, 68, 68, 0.3);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.ticker-flash-up {
+  animation: tickerFlashUp 0.8s ease-out;
+}
+.ticker-flash-down {
+  animation: tickerFlashDown 0.8s ease-out;
+}
+
+/* Construction scanner line (for Frame images) */
+@keyframes scanDown {
+  0% {
+    top: 0%;
+  }
+  100% {
+    top: 100%;
+  }
+}
+.animate-scan {
+  animation: scanDown 2s linear infinite;
 }

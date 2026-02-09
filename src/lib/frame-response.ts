@@ -39,6 +39,8 @@ export interface FrameResponse {
   inputText?: string;
   /** Screen identifier (encoded in postUrl for state tracking) */
   screen: Screen;
+  /** Alt text describing the image content for accessibility */
+  imageAlt?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -59,6 +61,8 @@ export function buildFrameResponse(opts: {
   postTarget?: string;
   /** Optional text-input placeholder */
   inputText?: string;
+  /** Alt text for the image — auto-generated if not provided */
+  imageAlt?: string;
 }): FrameResponse {
   const {
     screen,
@@ -67,6 +71,7 @@ export function buildFrameResponse(opts: {
     buttons,
     postTarget,
     inputText,
+    imageAlt,
   } = opts;
 
   // Image URL — points at the dynamic OG image endpoint
@@ -94,6 +99,7 @@ export function buildFrameResponse(opts: {
     postUrl,
     inputText,
     screen,
+    imageAlt: imageAlt ?? getDefaultImageAlt(screen),
   };
 }
 
@@ -155,6 +161,29 @@ function getDefaultButtons(screen: Screen): FrameButton[] {
 }
 
 // ---------------------------------------------------------------------------
+// Default image alt text per screen
+// ---------------------------------------------------------------------------
+
+function getDefaultImageAlt(screen: Screen): string {
+  switch (screen) {
+    case "home":
+      return "Lunar Colony Tycoon dashboard showing colony balance, production rate, and action buttons for produce, colony, market, and alliance.";
+    case "colony":
+      return "Colony overview showing module grid, active modules, production statistics, and build options.";
+    case "build":
+      return "Build menu showing available module types: Solar Panel, Mining Rig, Habitat, with costs and descriptions.";
+    case "market":
+      return "Market terminal showing current resource prices, trade options for LUNAR and Regolith.";
+    case "alliance":
+      return "Alliance panel showing member list, contribution totals, and ranking information.";
+    case "result":
+      return "Action result showing the outcome of your last operation with updated colony statistics.";
+    default:
+      return "Lunar Colony Tycoon game frame.";
+  }
+}
+
+// ---------------------------------------------------------------------------
 // HTML serializer
 // ---------------------------------------------------------------------------
 
@@ -167,6 +196,8 @@ export function frameResponseToHtml(response: FrameResponse): string {
     `<meta property="fc:frame:image" content="${response.imageUrl}" />`,
     `<meta property="fc:frame:image:aspect_ratio" content="${FRAME_IMAGE.ASPECT_RATIO}" />`,
     `<meta property="fc:frame:post_url" content="${response.postUrl}" />`,
+    `<meta property="og:image" content="${response.imageUrl}" />`,
+    `<meta property="og:image:alt" content="${(response.imageAlt ?? "Lunar Colony Tycoon game frame").replace(/"/g, "&quot;")}" />`,
   ];
 
   if (response.inputText) {
@@ -191,10 +222,18 @@ export function frameResponseToHtml(response: FrameResponse): string {
   });
 
   return `<!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
+    <meta charset="utf-8" />
+    <title>Lunar Colony Tycoon</title>
     ${tags.join("\n    ")}
   </head>
-  <body>Lunar Colony Tycoon</body>
+  <body>
+    <h1>Lunar Colony Tycoon</h1>
+    <p>${(response.imageAlt ?? "Lunar Colony Tycoon game frame").replace(/</g, "&lt;")}</p>
+    <noscript>
+      <p>This is a Farcaster Frame game. Open in a Frame-compatible client to play.</p>
+    </noscript>
+  </body>
 </html>`;
 }

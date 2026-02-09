@@ -119,13 +119,14 @@ export function TutorialOverlay() {
               <div className="flex items-center justify-between">
                 <button
                   onClick={skipTutorial}
-                  className="text-xs text-slate-600 transition hover:text-slate-400"
+                  aria-label="Skip tutorial"
+                  className="text-xs text-slate-600 transition hover:text-slate-400 min-h-[44px] min-w-[44px] flex items-center focus-visible:ring-2 focus-visible:ring-cyan-500 rounded-lg px-2"
                 >
                   Skip tutorial
                 </button>
                 <button
                   onClick={nextStep}
-                  className="rounded-lg bg-cyan-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-cyan-500 active:scale-[0.97]"
+                  className="rounded-lg bg-cyan-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-cyan-500 active:scale-[0.97] min-h-[44px] focus-visible:ring-2 focus-visible:ring-cyan-500"
                 >
                   {meta.cta}
                 </button>

@@ -49,6 +49,9 @@ export function WelcomeBackModal() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, transition: { duration: 0.2 } }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Welcome back"
           className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/80 backdrop-blur-md"
           onClick={dismiss}
         >
@@ -136,7 +139,7 @@ export function WelcomeBackModal() {
             {/* CTA */}
             <button
               onClick={dismiss}
-              className="glow-cyan w-full rounded-xl bg-cyan-600 py-3 text-sm font-bold text-white transition hover:bg-cyan-500 active:scale-[0.98]"
+              className="glow-cyan w-full rounded-xl bg-cyan-600 py-3 text-sm font-bold text-white transition hover:bg-cyan-500 active:scale-[0.98] min-h-[48px] focus-visible:ring-2 focus-visible:ring-cyan-500"
             >
               {summary.pending > 0 ? "Collect & Continue" : "Enter Colony"}
             </button>

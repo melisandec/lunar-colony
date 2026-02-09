@@ -1,0 +1,48 @@
+"use client";
+
+export default function TradeHistoryPage() {
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h2 className="text-lg font-bold text-white">📜 Trade History</h2>
+        <p className="text-sm text-slate-400">
+          View your past market transactions.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-slate-800/60 bg-slate-900/50 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-800/40 text-left text-xs text-slate-500">
+              <th className="px-4 py-3">Date</th>
+              <th className="px-4 py-3">Type</th>
+              <th className="px-4 py-3">Resource</th>
+              <th className="px-4 py-3">Amount</th>
+              <th className="px-4 py-3">Total</th>
+            </tr>
+          </thead>
+          <tbody className="text-slate-300">
+            <tr className="border-b border-slate-800/20">
+              <td className="px-4 py-3 text-xs text-slate-500">2 hours ago</td>
+              <td className="px-4 py-3">
+                <span className="text-emerald-400">Buy</span>
+              </td>
+              <td className="px-4 py-3">Water Ice</td>
+              <td className="px-4 py-3">50</td>
+              <td className="px-4 py-3">325 🌙</td>
+            </tr>
+            <tr>
+              <td className="px-4 py-3 text-xs text-slate-500">5 hours ago</td>
+              <td className="px-4 py-3">
+                <span className="text-rose-400">Sell</span>
+              </td>
+              <td className="px-4 py-3">Helium-3</td>
+              <td className="px-4 py-3">200</td>
+              <td className="px-4 py-3">2,800 🌙</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
