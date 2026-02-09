@@ -1,65 +1,121 @@
-import Image from "next/image";
+import Link from "next/link";
+import { GAME_CONSTANTS } from "@/lib/utils";
 
+/**
+ * Landing page for Lunar Colony Tycoon.
+ * This is the web view - most players interact via the Farcaster Frame.
+ */
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white">
+      {/* Hero Section */}
+      <div className="flex min-h-screen flex-col items-center justify-center px-4 text-center">
+        <div className="mb-6 text-8xl">🌙</div>
+        <h1 className="mb-4 text-5xl font-bold tracking-tight md:text-7xl">
+          Lunar Colony
+          <span className="block bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+            Tycoon
+          </span>
+        </h1>
+        <p className="mb-8 max-w-lg text-lg text-indigo-200/80">
+          Build your lunar industrial empire directly in Farcaster. Construct
+          modules, mine resources, and earn{" "}
+          <span className="font-semibold text-yellow-400">$LUNAR</span> tokens.
+        </p>
+
+        {/* CTA */}
+        <div className="flex flex-col gap-4 sm:flex-row">
           <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+            href="https://warpcast.com"
             target="_blank"
             rel="noopener noreferrer"
+            className="rounded-full bg-indigo-600 px-8 py-3 text-lg font-semibold transition hover:bg-indigo-500"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
+            🚀 Play on Farcaster
           </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href="/1"
+            className="rounded-full border border-indigo-600 px-8 py-3 text-lg font-semibold transition hover:bg-indigo-900/50"
           >
-            Documentation
-          </a>
+            👀 View Demo Colony
+          </Link>
         </div>
-      </main>
+
+        {/* Stats Preview */}
+        <div className="mt-16 grid grid-cols-2 gap-6 md:grid-cols-4">
+          {[
+            {
+              label: "Module Types",
+              value: GAME_CONSTANTS.MODULE_TYPES.length,
+              icon: "🏗️",
+            },
+            {
+              label: "Max Modules",
+              value: GAME_CONSTANTS.MAX_MODULES,
+              icon: "📦",
+            },
+            {
+              label: "Starting $LUNAR",
+              value: GAME_CONSTANTS.STARTING_LUNAR,
+              icon: "💰",
+            },
+            { label: "Tick Interval", value: "5 min", icon: "⏱️" },
+          ].map((stat) => (
+            <div
+              key={stat.label}
+              className="rounded-xl border border-indigo-800/50 bg-slate-900/50 p-4 text-center"
+            >
+              <div className="text-2xl">{stat.icon}</div>
+              <div className="mt-1 text-2xl font-bold">{stat.value}</div>
+              <div className="text-xs text-indigo-300/70">{stat.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* How It Works */}
+      <section className="mx-auto max-w-4xl px-4 py-20">
+        <h2 className="mb-12 text-center text-3xl font-bold">How It Works</h2>
+        <div className="grid gap-8 md:grid-cols-3">
+          {[
+            {
+              step: "1",
+              title: "Start Your Colony",
+              desc: "Open the Frame on Farcaster to create your lunar base with a free Solar Panel.",
+              icon: "🌙",
+            },
+            {
+              step: "2",
+              title: "Build & Expand",
+              desc: "Construct modules like Mining Rigs, Habitats, and Research Labs to boost production.",
+              icon: "🔨",
+            },
+            {
+              step: "3",
+              title: "Earn $LUNAR",
+              desc: "Your colony produces $LUNAR every 5 minutes. Collect and reinvest to grow faster!",
+              icon: "💰",
+            },
+          ].map((item) => (
+            <div
+              key={item.step}
+              className="rounded-xl border border-indigo-800/30 bg-slate-900/30 p-6 text-center"
+            >
+              <div className="mb-3 text-4xl">{item.icon}</div>
+              <h3 className="mb-2 text-xl font-semibold">{item.title}</h3>
+              <p className="text-sm text-indigo-200/60">{item.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-indigo-900/30 py-8 text-center text-sm text-indigo-300/40">
+        <p>Lunar Colony Tycoon — A Farcaster Frame Game</p>
+        <p className="mt-1">
+          $LUNAR is an in-game token only. Not a real cryptocurrency.
+        </p>
+      </footer>
     </div>
   );
 }

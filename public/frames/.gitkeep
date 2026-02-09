@@ -1,0 +1,3 @@
+# Pre-rendered Frame images
+# Place static .png frame images here (1.91:1 ratio, max 1MB)
+# These are used as fallbacks when dynamic generation isn't needed.

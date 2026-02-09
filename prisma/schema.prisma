@@ -1,0 +1,98 @@
+// Prisma Schema for Lunar Colony Tycoon
+// Database: PostgreSQL (Neon.tech free tier)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --- Player ---
+// Linked to a Farcaster account via FID
+
+model Player {
+  id           String   @id @default(cuid())
+  fid          Int      @unique // Farcaster ID
+  username     String
+  lunarBalance Int      @default(500) // In-game $LUNAR token balance
+  totalEarned  Int      @default(0) // Lifetime earnings for leaderboard
+  colony       Colony?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([fid])
+  @@index([lunarBalance(sort: Desc)]) // Leaderboard query
+  @@index([totalEarned(sort: Desc)])
+}
+
+// --- Colony ---
+// Each player has one lunar colony
+
+model Colony {
+  id        String   @id @default(cuid())
+  name      String   @default("New Colony")
+  level     Int      @default(1)
+  lastTick  DateTime @default(now()) // Last resource collection timestamp
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId  String   @unique
+  modules   Module[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([lastTick]) // Cron job queries colonies by tick time
+}
+
+// --- Module ---
+// Buildings/structures in a colony that produce resources
+
+model Module {
+  id             String   @id @default(cuid())
+  type           String // solar_panel, mining_rig, habitat, etc.
+  level          Int      @default(1)
+  position       Int // Grid position in the colony
+  productionRate Int      @default(10) // $LUNAR per tick
+  isActive       Boolean  @default(true)
+  colony         Colony   @relation(fields: [colonyId], references: [id], onDelete: Cascade)
+  colonyId       String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([colonyId])
+  @@index([type])
+}
+
+// --- GameEvent ---
+// Audit log of significant game events (builds, collections, etc.)
+
+model GameEvent {
+  id        String   @id @default(cuid())
+  type      String // build, collect, upgrade, daily_reward
+  playerId  String
+  data      Json? // Flexible event payload
+  createdAt DateTime @default(now())
+
+  @@index([playerId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// --- Leaderboard ---
+// Materialized leaderboard snapshot (updated by cron)
+
+model LeaderboardEntry {
+  id             String   @id @default(cuid())
+  fid            Int
+  username       String
+  lunarBalance   Int
+  totalEarned    Int
+  moduleCount    Int
+  colonyLevel    Int
+  rank           Int
+  period         String // "daily", "weekly", "alltime"
+  snapshotAt     DateTime @default(now())
+
+  @@unique([fid, period])
+  @@index([period, rank])
+}
