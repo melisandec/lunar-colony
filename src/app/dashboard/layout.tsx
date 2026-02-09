@@ -6,6 +6,7 @@ import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { ResourceBar } from "@/components/dashboard/resource-bar";
 import { ToastProvider } from "@/components/dashboard/toast-provider";
 import { Modal, ContextMenu } from "@/components/dashboard/modal";
+import { OnboardingOrchestrator } from "@/components/onboarding";
 import { useGameStore } from "@/stores/game-store";
 import { useSearchParams } from "next/navigation";
 import { useEffect, type ReactNode, Suspense } from "react";
@@ -49,6 +50,9 @@ function DashboardShell({ children }: { children: ReactNode }) {
       <ToastProvider />
       <Modal />
       <ContextMenu />
+
+      {/* Onboarding layers (welcome, tutorial, tips, welcome-back) */}
+      <OnboardingOrchestrator />
     </div>
   );
 }

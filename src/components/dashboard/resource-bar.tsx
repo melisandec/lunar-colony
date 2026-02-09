@@ -43,7 +43,10 @@ export function ResourceBar() {
   };
 
   return (
-    <div className="flex h-12 items-center gap-2 border-b border-slate-800/40 bg-slate-950/60 px-3 backdrop-blur-md sm:gap-4 sm:px-5">
+    <div
+      data-tutorial="resource-bar"
+      className="flex h-12 items-center gap-2 border-b border-slate-800/40 bg-slate-950/60 px-3 backdrop-blur-md sm:gap-4 sm:px-5"
+    >
       {/* Balance */}
       <div className="flex items-center gap-1.5">
         <span className="text-sm">💰</span>

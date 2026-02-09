@@ -208,6 +208,7 @@ export default function ColonyMapPage() {
         </div>
 
         <div
+          data-tutorial="grid"
           className="grid gap-2"
           style={{
             gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))`,
@@ -262,6 +263,7 @@ export default function ColonyMapPage() {
       <AnimatePresence>
         {selectedModule && (
           <motion.aside
+            data-tutorial="detail-panel"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
