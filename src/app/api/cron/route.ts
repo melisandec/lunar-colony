@@ -1,104 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/database";
+import { processProductionCycle } from "@/lib/production-engine";
 import { GAME_CONSTANTS } from "@/lib/utils";
 
 /**
  * POST /api/cron
- * Protected endpoint for scheduled game ticks.
+ * Protected daily production cycle endpoint.
  *
- * Processes all active players, calculating per-module resource production
- * and crediting $LUNAR balances. Designed for Vercel Cron / external scheduler.
+ * Runs the full batch production calculator for all active players:
+ *   - Cursor-based batching (100 players/batch)
+ *   - Per-player 5 s timeout
+ *   - Idempotent via ProductionLog @@unique([playerId, date, resource])
+ *   - Structured logging via GameEvent
  *
  * Protected by CRON_SECRET in middleware.ts.
  *
  * Vercel cron config (vercel.json):
- * "crons": [{ "path": "/api/cron", "schedule": "every 5 minutes" }]
+ * "crons": [{ "path": "/api/cron", "schedule": "0 0 * * *" }]
  */
 export async function POST(_req: NextRequest) {
   const startTime = Date.now();
 
   try {
-    // Players that have at least one active, non-deleted module
-    const players = await prisma.player.findMany({
-      where: {
-        deletedAt: null,
-        modules: { some: { isActive: true, deletedAt: null } },
-      },
-      include: {
-        modules: {
-          where: { isActive: true, deletedAt: null },
-          select: {
-            id: true,
-            baseOutput: true,
-            bonusOutput: true,
-            efficiency: true,
-            lastCollectedAt: true,
-          },
-        },
-      },
+    // AbortController lets us stop cleanly if we approach the function timeout
+    const controller = new AbortController();
+
+    // Vercel serverless max is 60 s; stop processing at 50 s to allow cleanup
+    const safetyTimeout = setTimeout(() => controller.abort(), 50_000);
+
+    const result = await processProductionCycle({
+      batchSize: 100,
+      playerTimeoutMs: 5_000,
+      signal: controller.signal,
     });
 
-    let processedCount = 0;
-    let totalLunarProduced = 0;
-    const now = new Date();
-
-    // Process in batches for serverless optimization
-    const BATCH_SIZE = 50;
-
-    for (let i = 0; i < players.length; i += BATCH_SIZE) {
-      const batch = players.slice(i, i + BATCH_SIZE);
-
-      const updates = batch.map((player) => {
-        // Sum earnings across all active modules since their individual lastCollectedAt
-        let earnings = 0;
-
-        for (const m of player.modules) {
-          const base = Number(m.baseOutput);
-          const bonus = Number(m.bonusOutput);
-          const eff = Number(m.efficiency) / 100;
-          const rate = (base + bonus) * eff;
-
-          const msElapsed = now.getTime() - m.lastCollectedAt.getTime();
-          const ticks = msElapsed / GAME_CONSTANTS.TICK_INTERVAL_MS;
-          earnings += Math.floor(ticks * rate);
-        }
-
-        if (earnings <= 0) return null;
-
-        totalLunarProduced += earnings;
-        processedCount++;
-
-        return prisma.$transaction([
-          prisma.player.update({
-            where: { id: player.id },
-            data: {
-              lunarBalance: { increment: earnings },
-              totalEarnings: { increment: earnings },
-              lastActive: now,
-              version: { increment: 1 },
-            },
-          }),
-          // Reset lastCollectedAt on processed modules
-          ...player.modules.map((m) =>
-            prisma.module.update({
-              where: { id: m.id },
-              data: { lastCollectedAt: now, ageInCycles: { increment: 1 } },
-            }),
-          ),
-        ]);
-      });
-
-      await Promise.all(updates.filter(Boolean));
-    }
-
-    const duration = Date.now() - startTime;
+    clearTimeout(safetyTimeout);
 
     return NextResponse.json({
       success: true,
-      processed: processedCount,
-      totalPlayers: players.length,
-      totalLunarProduced,
-      durationMs: duration,
+      ...result,
+      aborted: controller.signal.aborted,
     });
   } catch (error) {
     console.error("Cron job error:", error);
