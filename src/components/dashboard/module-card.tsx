@@ -3,6 +3,8 @@
 import { type DashboardModule } from "@/stores/game-store";
 import { motion } from "framer-motion";
 import { useFeedback } from "@/hooks/use-feedback";
+import { useIsMobile } from "@/hooks/use-device";
+import { useAdaptiveAnimation } from "@/components/mobile";
 
 // ---------------------------------------------------------------------------
 // Module visual constants
@@ -80,11 +82,16 @@ export function ModuleCard({
   onDragStart,
 }: ModuleCardProps) {
   const fb = useFeedback();
+  const isMobile = useIsMobile();
+  const { shouldAnimate, spring } = useAdaptiveAnimation();
   const icon = MODULE_ICONS[module.type] ?? "📦";
   const label =
     MODULE_LABELS[module.type] ?? module.type.replace(/_/g, " ").toLowerCase();
   const tierBorder = TIER_COLORS[module.tier] ?? "border-slate-600";
   const tierGlow = TIER_GLOW[module.tier] ?? "";
+
+  // Mobile: 60px min touch target, desktop: 72px
+  const minSize = isMobile ? 60 : 72;
 
   const a11yLabel = `${label}, ${module.tier.toLowerCase()} tier, level ${module.level}, ${module.efficiency}% efficiency${module.isActive ? "" : ", inactive"}`;
 
@@ -99,8 +106,8 @@ export function ModuleCard({
   return (
     <div draggable={draggable} onDragStart={onDragStart}>
       <motion.div
-        layout
-        layoutId={`module-${module.id}`}
+        layout={shouldAnimate}
+        layoutId={shouldAnimate ? `module-${module.id}` : undefined}
         role="button"
         tabIndex={0}
         aria-label={a11yLabel}
@@ -112,29 +119,35 @@ export function ModuleCard({
         }}
         onKeyDown={handleKeyDown}
         onContextMenu={onContextMenu}
-        onPointerEnter={() => fb.hover()}
-        whileHover={{ scale: 1.03 }}
-        whileTap={{ scale: 0.97 }}
-        className={`relative flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 p-2 transition-all
+        onPointerEnter={() => !isMobile && fb.hover()}
+        whileHover={shouldAnimate ? { scale: 1.03 } : undefined}
+        whileTap={shouldAnimate ? { scale: 0.97 } : undefined}
+        transition={spring}
+        className={`relative flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 transition-all
           focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950
           ${tierBorder} ${tierGlow}
           ${selected ? "bg-cyan-500/10 ring-2 ring-cyan-500/40" : "bg-slate-900/50 hover:bg-slate-800/50"}
           ${!module.isActive ? "opacity-40" : ""}
-          ${draggable ? "cursor-grab active:cursor-grabbing" : ""}`}
-        style={{ minWidth: 72, minHeight: 72 }}
+          ${draggable ? "cursor-grab active:cursor-grabbing" : ""}
+          ${isMobile ? "p-3" : "p-2"}`}
+        style={{ minWidth: minSize, minHeight: minSize }}
       >
         {/* Icon */}
-        <span className="text-2xl" aria-hidden="true">
+        <span className={isMobile ? "text-3xl" : "text-2xl"} aria-hidden="true">
           {icon}
         </span>
 
         {/* Name */}
-        <span className="mt-1 text-[10px] font-medium capitalize text-slate-300 leading-tight text-center">
+        <span
+          className={`mt-1 font-medium capitalize text-slate-300 leading-tight text-center ${isMobile ? "text-xs" : "text-[10px]"}`}
+        >
           {module.type.replace(/_/g, " ").toLowerCase()}
         </span>
 
         {/* Tier badge */}
-        <span className="mt-0.5 text-[8px] font-semibold uppercase tracking-wider text-slate-500">
+        <span
+          className={`mt-0.5 font-semibold uppercase tracking-wider text-slate-500 ${isMobile ? "text-[10px]" : "text-[8px]"}`}
+        >
           {module.tier}
         </span>
 

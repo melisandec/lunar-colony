@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { FarcasterProvider } from "@/components/farcaster-provider";
+import { MobileProvider } from "@/components/mobile";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -30,6 +31,16 @@ const miniAppEmbed = {
   },
 };
 
+/** Viewport config — optimises for mobile Warpcast viewing */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: "#0a0a1a",
+};
+
 export const metadata: Metadata = {
   title: "Lunar Colony Tycoon",
   description:
@@ -54,10 +65,20 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta
+          name="apple-mobile-web-app-status-bar-style"
+          content="black-translucent"
+        />
+        <link rel="manifest" href="/manifest.json" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <FarcasterProvider>{children}</FarcasterProvider>
+        <FarcasterProvider>
+          <MobileProvider>{children}</MobileProvider>
+        </FarcasterProvider>
       </body>
     </html>
   );

@@ -138,7 +138,8 @@ export function ResourceBar() {
             whileTap={{ scale: 0.94 }}
             transition={{ type: "spring", stiffness: 500, damping: 30 }}
             aria-label={`Collect ${fmt(colony.pendingEarnings)} pending LUNAR earnings`}
-            className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-400 transition-colors hover:bg-emerald-500/20 disabled:opacity-50 min-h-[44px] focus-visible:ring-2 focus-visible:ring-cyan-500"
+            className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-400 transition-colors hover:bg-emerald-500/20 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-cyan-500"
+            style={{ minHeight: 60, minWidth: 60 }}
           >
             {collect.isPending ? (
               <svg

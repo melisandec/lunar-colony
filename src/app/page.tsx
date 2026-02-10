@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { GAME_CONSTANTS } from "@/lib/utils";
 import { useFarcaster } from "@/components/farcaster-provider";
+import { OfflineBanner, LowBatteryBanner } from "@/components/mobile";
 
 /**
  * Landing page for Lunar Colony Tycoon.
@@ -38,16 +39,24 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white">
+      <OfflineBanner />
+      <LowBatteryBanner />
       {/* Hero Section */}
-      <div className="flex min-h-screen flex-col items-center justify-center px-4 text-center">
+      <div
+        className="flex min-h-screen flex-col items-center justify-center px-4 text-center"
+        style={{
+          paddingTop: "var(--safe-top, 0px)",
+          paddingBottom: "var(--safe-bottom, 0px)",
+        }}
+      >
         <div className="mb-6 text-8xl">🌙</div>
-        <h1 className="mb-4 text-5xl font-bold tracking-tight md:text-7xl">
+        <h1 className="mb-4 text-4xl font-bold tracking-tight sm:text-5xl md:text-7xl">
           Lunar Colony
           <span className="block bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
             Tycoon
           </span>
         </h1>
-        <p className="mb-8 max-w-lg text-lg text-indigo-200/80">
+        <p className="mb-8 max-w-lg text-base sm:text-lg text-indigo-200/80">
           Build your lunar industrial empire directly in Farcaster. Construct
           modules, mine resources, and earn{" "}
           <span className="font-semibold text-yellow-400">$LUNAR</span> tokens.
@@ -59,13 +68,15 @@ export default function Home() {
             href="https://warpcast.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-full bg-indigo-600 px-8 py-3 text-lg font-semibold transition hover:bg-indigo-500"
+            className="rounded-full bg-indigo-600 px-8 py-4 text-lg font-semibold transition active:scale-95 hover:bg-indigo-500"
+            style={{ minWidth: 60, minHeight: 60 }}
           >
             🚀 Play on Farcaster
           </a>
           <Link
             href="/1"
-            className="rounded-full border border-indigo-600 px-8 py-3 text-lg font-semibold transition hover:bg-indigo-900/50"
+            className="rounded-full border border-indigo-600 px-8 py-4 text-lg font-semibold transition active:scale-95 hover:bg-indigo-900/50"
+            style={{ minWidth: 60, minHeight: 60 }}
           >
             👀 View Demo Colony
           </Link>

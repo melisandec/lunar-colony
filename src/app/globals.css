@@ -366,3 +366,134 @@ body {
 .animate-scan {
   animation: scanDown 2s linear infinite;
 }
+
+/* =========================================================================
+   MOBILE OPTIMIZATIONS
+   ========================================================================= */
+
+/* ---- Safe area insets (notched phones) ---- */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* ---- Touch targets ---- */
+/* Mobile: enforce 60px min touch targets globally */
+[data-mobile="true"] button,
+[data-mobile="true"] a[role="button"],
+[data-mobile="true"] [role="button"],
+[data-mobile="true"] input[type="submit"],
+[data-mobile="true"] .touch-target {
+  min-height: 60px;
+  min-width: 60px;
+}
+
+/* ---- Mobile typography ---- */
+[data-mobile="true"] {
+  /* Slightly larger base for readability on small screens */
+  font-size: calc(1rem * var(--a11y-text-scale, 1) * 1.05);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Higher contrast text on mobile */
+[data-mobile="true"] .text-slate-400 {
+  color: rgb(203, 213, 225); /* slate-300 */
+}
+[data-mobile="true"] .text-slate-500 {
+  color: rgb(148, 163, 184); /* slate-400 */
+}
+[data-mobile="true"] .text-indigo-200\/60 {
+  color: rgba(199, 210, 254, 0.75);
+}
+[data-mobile="true"] .text-indigo-200\/80 {
+  color: rgba(199, 210, 254, 0.9);
+}
+[data-mobile="true"] .text-indigo-300\/40 {
+  color: rgba(165, 180, 252, 0.6);
+}
+[data-mobile="true"] .text-indigo-300\/70 {
+  color: rgba(165, 180, 252, 0.85);
+}
+
+/* ---- Disable hover effects on touch ---- */
+@media (hover: none) {
+  .hover\:bg-slate-800\/50:hover {
+    background-color: transparent;
+  }
+  .hover\:bg-indigo-500:hover {
+    background-color: inherit;
+  }
+  .hover\:bg-indigo-900\/50:hover {
+    background-color: transparent;
+  }
+  .hover\:border-slate-700:hover {
+    border-color: inherit;
+  }
+  .shimmer-hover:hover::after {
+    display: none;
+  }
+}
+
+/* ---- Active state for touch feedback ---- */
+@media (hover: none) {
+  button:active,
+  a[role="button"]:active,
+  [role="button"]:active {
+    transform: scale(0.97);
+    transition: transform 0.1s ease;
+  }
+}
+
+/* ---- Battery saver mode ---- */
+[data-battery-saver="true"] *,
+[data-battery-saver="true"] *::before,
+[data-battery-saver="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.05s !important;
+}
+
+[data-battery-saver="true"] .glow-cyan,
+[data-battery-saver="true"] .glow-amber,
+[data-battery-saver="true"] .glow-emerald {
+  box-shadow: none;
+}
+
+[data-battery-saver="true"] .pulse-ring {
+  animation: none;
+}
+
+[data-battery-saver="true"] .animate-float {
+  animation: none;
+}
+
+/* ---- Mobile scrolling ---- */
+[data-mobile="true"] .dashboard-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* ---- In-app browser adjustments ---- */
+[data-in-app="true"] {
+  /* Prevent overscroll bounce in WebViews */
+  overscroll-behavior: none;
+}
+
+/* ---- Orientation-specific layouts ---- */
+[data-orientation="landscape"] .mobile-landscape-grid {
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+}
+
+[data-orientation="portrait"] .mobile-portrait-grid {
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+}
+
+/* ---- Pull-to-refresh indicator ---- */
+.ptr-indicator {
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease;
+}
