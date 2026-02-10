@@ -416,11 +416,217 @@ export function syncPlayerSummary(playerId: string): void {
   );
 }
 
+// --- Module Upgrade ---
+
+/** Cost to upgrade a module from its current level. */
+export function calculateUpgradeCost(
+  moduleType: ModuleType,
+  currentLevel: number,
+): number {
+  const baseCosts: Record<ModuleType, number> = {
+    SOLAR_PANEL: 50,
+    MINING_RIG: 125,
+    HABITAT: 100,
+    RESEARCH_LAB: 250,
+    WATER_EXTRACTOR: 150,
+    OXYGEN_GENERATOR: 175,
+    STORAGE_DEPOT: 75,
+    LAUNCH_PAD: 500,
+  };
+  return Math.floor(baseCosts[moduleType] * Math.pow(1.5, currentLevel - 1));
+}
+
+const MAX_MODULE_LEVEL = 10;
+
+/**
+ * Upgrade a module by one level.
+ * Increases baseOutput by 15 % per level.
+ */
+export async function upgradeModule(
+  playerId: string,
+  moduleId: string,
+): Promise<{
+  success: boolean;
+  error?: string;
+  module?: ModuleState;
+  cost?: number;
+}> {
+  const player = await prisma.player.findUnique({
+    where: { id: playerId },
+    include: { modules: { where: { deletedAt: null } } },
+  });
+
+  if (!player) return { success: false, error: "Player not found" };
+
+  const mod = player.modules.find((m) => m.id === moduleId);
+  if (!mod) return { success: false, error: "Module not found" };
+
+  if (mod.level >= MAX_MODULE_LEVEL) {
+    return {
+      success: false,
+      error: `Already at max level (${MAX_MODULE_LEVEL})`,
+    };
+  }
+
+  const cost = calculateUpgradeCost(mod.type as ModuleType, mod.level);
+  const balance = d(player.lunarBalance);
+
+  if (balance < cost) {
+    return {
+      success: false,
+      error: `Not enough $LUNAR. Need ${cost}, have ${Math.floor(balance)}.`,
+    };
+  }
+
+  const newLevel = mod.level + 1;
+  const currentBase = d(mod.baseOutput);
+  const newBase = Math.round(currentBase * 1.15 * 100) / 100; // +15 % per level
+  const newBalance = balance - cost;
+
+  const [, updatedModule] = await prisma.$transaction([
+    prisma.player.update({
+      where: { id: playerId, version: player.version },
+      data: {
+        lunarBalance: { decrement: cost },
+        version: { increment: 1 },
+      },
+    }),
+    prisma.module.update({
+      where: { id: moduleId, version: mod.version },
+      data: {
+        level: newLevel,
+        baseOutput: newBase,
+        version: { increment: 1 },
+      },
+    }),
+    prisma.transaction.create({
+      data: {
+        playerId,
+        type: "UPGRADE",
+        resource: "LUNAR",
+        amount: -cost,
+        balanceAfter: newBalance,
+        description: `Upgraded ${mod.type} to level ${newLevel}`,
+        metadata: { moduleId, moduleType: mod.type, newLevel, cost },
+      },
+    }),
+    prisma.gameEvent.create({
+      data: {
+        playerId,
+        type: "upgrade",
+        data: { moduleId, moduleType: mod.type, newLevel, cost },
+      },
+    }),
+  ]);
+
+  GameMetrics.trackPlayerAction(playerId, "upgrade", {
+    moduleType: mod.type,
+    newLevel,
+    cost,
+  });
+
+  return {
+    success: true,
+    cost,
+    module: {
+      id: updatedModule.id,
+      type: updatedModule.type as ModuleType,
+      tier: updatedModule.tier,
+      level: updatedModule.level,
+      coordinates: updatedModule.coordinates as { x: number; y: number },
+      baseOutput: d(updatedModule.baseOutput),
+      bonusOutput: d(updatedModule.bonusOutput),
+      efficiency: d(updatedModule.efficiency),
+      isActive: updatedModule.isActive,
+    },
+  };
+}
+
+// --- Crew Assignment ---
+
+/**
+ * Assign (or unassign) a crew member to a module.
+ * Specialty match gives 1.5× output bonus.
+ */
+export async function assignCrew(
+  playerId: string,
+  crewId: string,
+  moduleId: string | null,
+): Promise<{ success: boolean; error?: string }> {
+  const crew = await prisma.crewMember.findFirst({
+    where: { id: crewId, playerId, isActive: true, deletedAt: null },
+  });
+
+  if (!crew) return { success: false, error: "Crew member not found" };
+
+  if (moduleId) {
+    const mod = await prisma.module.findFirst({
+      where: { id: moduleId, playerId, deletedAt: null },
+    });
+    if (!mod) return { success: false, error: "Module not found" };
+
+    const existing = await prisma.crewMember.findFirst({
+      where: {
+        assignedModuleId: moduleId,
+        playerId,
+        isActive: true,
+        deletedAt: null,
+        id: { not: crewId },
+      },
+    });
+    if (existing) {
+      return {
+        success: false,
+        error: `${existing.name} is already assigned to this module`,
+      };
+    }
+
+    const specialtyMatch = crew.specialty === mod.type;
+    const bonusMultiplier = specialtyMatch
+      ? d(crew.outputBonus) * 1.5
+      : d(crew.outputBonus);
+    const bonusOutput = (d(mod.baseOutput) * bonusMultiplier) / 100;
+
+    await prisma.$transaction([
+      prisma.crewMember.update({
+        where: { id: crewId },
+        data: { assignedModuleId: moduleId },
+      }),
+      prisma.module.update({
+        where: { id: moduleId },
+        data: { bonusOutput },
+      }),
+    ]);
+  } else {
+    if (crew.assignedModuleId) {
+      await prisma.$transaction([
+        prisma.crewMember.update({
+          where: { id: crewId },
+          data: { assignedModuleId: null },
+        }),
+        prisma.module.update({
+          where: { id: crew.assignedModuleId },
+          data: { bonusOutput: 0 },
+        }),
+      ]);
+    } else {
+      await prisma.crewMember.update({
+        where: { id: crewId },
+        data: { assignedModuleId: null },
+      });
+    }
+  }
+
+  return { success: true };
+}
+
 export const gameEngine = {
   getOrCreatePlayer,
   calculateColonyState,
   calculateModuleCost,
   buildModule,
+  upgradeModule,
+  assignCrew,
   collectEarnings,
   syncPlayerSummary,
 };

@@ -6,8 +6,14 @@ import {
   useColony,
   useRepositionModule,
   useBuildModule,
+  useUpgradeModule,
+  useAssignCrew,
 } from "@/hooks/use-colony";
-import { useGameStore, type DashboardModule } from "@/stores/game-store";
+import {
+  useGameStore,
+  type DashboardModule,
+  type DashboardCrew,
+} from "@/stores/game-store";
 import { useUIStore } from "@/stores/ui-store";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard";
 import { ModuleCard, EmptyGridCell } from "@/components/dashboard/module-card";
@@ -58,6 +64,8 @@ export default function ColonyMapPage() {
   const openContextMenu = useUIStore((s) => s.openContextMenu);
   const addToast = useUIStore((s) => s.addToast);
   const reposition = useRepositionModule();
+  const upgrade = useUpgradeModule();
+  const assignCrewMutation = useAssignCrew();
 
   const [dragSource, setDragSource] = useState<string | null>(null);
 
@@ -331,22 +339,64 @@ export default function ColonyMapPage() {
                 value={`(${selectedModule.coordinates.x}, ${selectedModule.coordinates.y})`}
               />
 
-              {/* Crew assignment placeholder */}
+              {/* Crew assignment display */}
               <div className="mt-4 rounded-lg border border-slate-800 bg-slate-800/30 p-3">
                 <div className="text-xs font-medium text-slate-400">
                   👨‍🚀 Assigned Crew
                 </div>
                 <div className="mt-1 text-sm text-slate-500">
-                  No crew assigned
+                  {colony?.crew.find(
+                    (c) => c.assignedModuleId === selectedModule.id,
+                  )?.name ?? "No crew assigned"}
                 </div>
               </div>
 
               {/* Action buttons */}
               <div className="mt-4 flex gap-2">
-                <button className="flex-1 rounded-lg bg-cyan-600/20 py-2 text-sm font-semibold text-cyan-400 transition hover:bg-cyan-600/30">
-                  ⬆️ Upgrade
+                <button
+                  onClick={async () => {
+                    try {
+                      await upgrade.mutateAsync(selectedModule.id);
+                      addToast({
+                        type: "success",
+                        title: `Upgraded to Lv.${selectedModule.level + 1}!`,
+                        icon: "⬆️",
+                      });
+                    } catch (err) {
+                      addToast({
+                        type: "error",
+                        title: "Upgrade failed",
+                        message:
+                          err instanceof Error ? err.message : "Unknown error",
+                        icon: "❌",
+                      });
+                    }
+                  }}
+                  disabled={upgrade.isPending || selectedModule.level >= 10}
+                  className="flex-1 rounded-lg bg-cyan-600/20 py-2 text-sm font-semibold text-cyan-400 transition hover:bg-cyan-600/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {upgrade.isPending
+                    ? "Upgrading…"
+                    : selectedModule.level >= 10
+                      ? "Max Level"
+                      : "⬆️ Upgrade"}
                 </button>
-                <button className="flex-1 rounded-lg bg-slate-800 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-700">
+                <button
+                  onClick={() => {
+                    openModal(
+                      <AssignCrewDialog
+                        moduleId={selectedModule.id}
+                        moduleName={
+                          MODULE_LABELS[selectedModule.type] ??
+                          selectedModule.type
+                        }
+                        crew={colony?.crew ?? []}
+                        assignMutation={assignCrewMutation}
+                      />,
+                    );
+                  }}
+                  className="flex-1 rounded-lg bg-slate-800 py-2 text-sm font-semibold text-slate-300 transition hover:bg-slate-700"
+                >
                   👨‍🚀 Assign
                 </button>
               </div>
@@ -456,6 +506,123 @@ function BuildModuleDialog({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Assign Crew Dialog
+// ---------------------------------------------------------------------------
+
+function AssignCrewDialog({
+  moduleId,
+  moduleName,
+  crew,
+  assignMutation,
+}: {
+  moduleId: string;
+  moduleName: string;
+  crew: DashboardCrew[];
+  assignMutation: ReturnType<typeof useAssignCrew>;
+}) {
+  const closeModal = useUIStore((s) => s.closeModal);
+  const addToast = useUIStore((s) => s.addToast);
+
+  const available = crew.filter(
+    (c) =>
+      c.isActive && (!c.assignedModuleId || c.assignedModuleId === moduleId),
+  );
+  const currentlyAssigned = crew.find((c) => c.assignedModuleId === moduleId);
+
+  const handleAssign = async (crewId: string) => {
+    try {
+      await assignMutation.mutateAsync({ crewId, moduleId });
+      addToast({
+        type: "success",
+        title: "Crew assigned!",
+        icon: "👨‍🚀",
+      });
+      closeModal();
+    } catch (err) {
+      addToast({
+        type: "error",
+        title: "Assignment failed",
+        message: err instanceof Error ? err.message : "Unknown error",
+        icon: "❌",
+      });
+    }
+  };
+
+  const handleUnassign = async (crewId: string) => {
+    try {
+      await assignMutation.mutateAsync({ crewId, moduleId: null });
+      addToast({
+        type: "success",
+        title: "Crew unassigned",
+        icon: "👨‍🚀",
+      });
+      closeModal();
+    } catch (err) {
+      addToast({
+        type: "error",
+        title: "Unassign failed",
+        message: err instanceof Error ? err.message : "Unknown error",
+        icon: "❌",
+      });
+    }
+  };
+
+  return (
+    <div>
+      <h2 className="mb-1 text-lg font-bold">Assign Crew</h2>
+      <p className="mb-4 text-sm text-slate-400">
+        {moduleName}
+        {currentlyAssigned && (
+          <span className="ml-2 text-cyan-400">
+            — Currently: {currentlyAssigned.name}
+          </span>
+        )}
+      </p>
+
+      {available.length === 0 ? (
+        <p className="text-sm text-slate-500">
+          No available crew members. Recruit crew from the Colony menu.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {available.map((c) => (
+            <button
+              key={c.id}
+              onClick={() =>
+                c.assignedModuleId === moduleId
+                  ? handleUnassign(c.id)
+                  : handleAssign(c.id)
+              }
+              disabled={assignMutation.isPending}
+              className="flex w-full items-center gap-3 rounded-lg border border-slate-700 bg-slate-800/50 p-3 text-left transition hover:border-cyan-500/40 hover:bg-slate-800 disabled:opacity-40"
+            >
+              <span className="text-xl">👨‍🚀</span>
+              <div className="flex-1">
+                <div className="text-sm font-semibold text-white">{c.name}</div>
+                <div className="text-[10px] text-slate-500">
+                  {c.role} · Lv.{c.level}
+                  {c.specialty &&
+                    ` · ${c.specialty.replace(/_/g, " ").toLowerCase()}`}
+                </div>
+              </div>
+              {c.assignedModuleId === moduleId ? (
+                <span className="text-xs font-medium text-amber-400">
+                  Unassign
+                </span>
+              ) : (
+                <span className="text-xs font-medium text-cyan-400">
+                  Assign
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

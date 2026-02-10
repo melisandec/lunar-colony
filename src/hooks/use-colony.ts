@@ -133,3 +133,63 @@ export function useRepositionModule() {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Upgrade module mutation
+// ---------------------------------------------------------------------------
+
+export function useUpgradeModule() {
+  const fid = useGameStore((s) => s.fid);
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (moduleId: string) => {
+      const res = await fetch(`/api/dashboard/${fid}/action`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "upgrade", moduleId }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Upgrade failed");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["colony", fid] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Assign crew mutation
+// ---------------------------------------------------------------------------
+
+export function useAssignCrew() {
+  const fid = useGameStore((s) => s.fid);
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      crewId,
+      moduleId,
+    }: {
+      crewId: string;
+      moduleId: string | null;
+    }) => {
+      const res = await fetch(`/api/dashboard/${fid}/action`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "assign", crewId, moduleId }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Assignment failed");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["colony", fid] });
+    },
+  });
+}

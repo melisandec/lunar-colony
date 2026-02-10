@@ -3,6 +3,8 @@ import {
   getOrCreatePlayer,
   collectEarnings,
   buildModule,
+  upgradeModule,
+  assignCrew,
 } from "@/lib/game-engine";
 import prisma from "@/lib/database";
 import type { ModuleType } from "@/lib/utils";
@@ -69,6 +71,46 @@ export async function POST(
         });
 
         return NextResponse.json({ success: true, moduleId, x, y });
+      }
+
+      case "upgrade": {
+        const { moduleId } = body;
+        if (!moduleId) {
+          return NextResponse.json(
+            { error: "moduleId required" },
+            { status: 400 },
+          );
+        }
+        const upgradeResult = await upgradeModule(player.id, moduleId);
+        if (!upgradeResult.success) {
+          return NextResponse.json(
+            { error: upgradeResult.error },
+            { status: 400 },
+          );
+        }
+        return NextResponse.json(upgradeResult);
+      }
+
+      case "assign": {
+        const { crewId, moduleId: targetModuleId } = body;
+        if (!crewId) {
+          return NextResponse.json(
+            { error: "crewId required" },
+            { status: 400 },
+          );
+        }
+        const assignResult = await assignCrew(
+          player.id,
+          crewId,
+          targetModuleId ?? null,
+        );
+        if (!assignResult.success) {
+          return NextResponse.json(
+            { error: assignResult.error },
+            { status: 400 },
+          );
+        }
+        return NextResponse.json(assignResult);
       }
 
       case "trade": {
