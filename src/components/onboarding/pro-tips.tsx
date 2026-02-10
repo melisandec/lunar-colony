@@ -65,6 +65,7 @@ export function ProTipProvider() {
     }, TIP_DELAY_MS);
 
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- lastShownAt intentionally excluded to avoid re-trigger loop
   }, [
     currentPage,
     playerLevel,

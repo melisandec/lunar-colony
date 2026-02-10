@@ -243,7 +243,14 @@ export default function ColonyMapPage() {
         },
       ]);
     },
-    [openContextMenu, selectModule, addToast],
+    [
+      openContextMenu,
+      selectModule,
+      addToast,
+      toggleModule,
+      repairModule,
+      demolishModule,
+    ],
   );
 
   if (isLoading) {
