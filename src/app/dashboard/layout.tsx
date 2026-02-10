@@ -205,7 +205,7 @@ function DashboardShell({ children }: { children: ReactNode }) {
         <main
           id="main-content"
           aria-label="Dashboard content"
-          className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-20 lg:pb-4"
+          className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 lg:pb-4"
         >
           {children}
         </main>

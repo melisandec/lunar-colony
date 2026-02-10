@@ -95,16 +95,41 @@ export type ResourceKey = keyof typeof resourceMeta;
 
 export const moduleMeta: Record<
   string,
-  { icon: string; color: string; label: string }
+  { icon: string; image?: string; color: string; label: string }
 > = {
-  SOLAR_PANEL: { icon: "⚡", color: "#FACC15", label: "Solar Panel" },
-  MINING_RIG: { icon: "⛏️", color: "#F97316", label: "Mining Rig" },
-  HABITAT: { icon: "🏠", color: "#60A5FA", label: "Habitat" },
-  RESEARCH_LAB: { icon: "🔬", color: "#A855F7", label: "Research Lab" },
+  SOLAR_PANEL: {
+    icon: "⚡",
+    image: "/modules/solar-panel.png",
+    color: "#FACC15",
+    label: "Solar Panel",
+  },
+  MINING_RIG: {
+    icon: "⛏️",
+    image: "/modules/mining-rig.png",
+    color: "#F97316",
+    label: "Mining Rig",
+  },
+  HABITAT: {
+    icon: "🏠",
+    image: "/modules/habitat.png",
+    color: "#60A5FA",
+    label: "Habitat",
+  },
+  RESEARCH_LAB: {
+    icon: "🔬",
+    image: "/modules/research-lab.png",
+    color: "#A855F7",
+    label: "Research Lab",
+  },
   WATER_EXTRACTOR: { icon: "💧", color: "#38BDF8", label: "Water Extractor" },
   OXYGEN_GENERATOR: { icon: "🫁", color: "#2ECC71", label: "O₂ Generator" },
   STORAGE_DEPOT: { icon: "📦", color: "#9CA3AF", label: "Storage Depot" },
-  LAUNCH_PAD: { icon: "🚀", color: "#EF4444", label: "Launch Pad" },
+  LAUNCH_PAD: {
+    icon: "🚀",
+    image: "/modules/launch-pad.png",
+    color: "#EF4444",
+    label: "Launch Pad",
+  },
 };
 
 // ---------------------------------------------------------------------------

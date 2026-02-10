@@ -198,7 +198,7 @@ export default function ColonyMapPage() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-4 p-4 lg:flex-row lg:p-6">
+    <div className="flex min-h-full flex-col gap-4 lg:flex-row">
       {/* Grid */}
       <div className="flex-1">
         <div className="mb-4 flex items-center justify-between">
@@ -212,10 +212,7 @@ export default function ColonyMapPage() {
 
         <div
           data-tutorial="grid"
-          className="grid gap-2"
-          style={{
-            gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))`,
-          }}
+          className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5"
         >
           {grid.map((row, y) =>
             row.map((cell, x) =>
@@ -243,20 +240,20 @@ export default function ColonyMapPage() {
         </div>
 
         {/* Legend */}
-        <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-500">
-          <span>
-            <span className="mr-1 inline-block h-2 w-2 rounded-full bg-emerald-400" />
-            ≥80% eff
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />
+            ≥80%
           </span>
-          <span>
-            <span className="mr-1 inline-block h-2 w-2 rounded-full bg-amber-400" />
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
             50–79%
           </span>
-          <span>
-            <span className="mr-1 inline-block h-2 w-2 rounded-full bg-red-400" />
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full bg-red-400" />
             &lt;50%
           </span>
-          <span className="ml-auto">
+          <span className="ml-auto text-slate-600 hidden sm:inline">
             Drag to reposition · Right-click for options
           </span>
         </div>
