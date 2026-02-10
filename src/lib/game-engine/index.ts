@@ -542,6 +542,186 @@ export async function upgradeModule(
   };
 }
 
+// --- Crew Recruitment ---
+
+const CREW_HIRE_COST = 200;
+const MAX_CREW = 5;
+
+const CREW_FIRST_NAMES = [
+  "Kai",
+  "Yuki",
+  "Reza",
+  "Anya",
+  "Felix",
+  "Nia",
+  "Oleg",
+  "Suki",
+  "Leo",
+  "Mira",
+  "Dax",
+  "Zara",
+  "Jin",
+  "Tess",
+  "Igor",
+];
+
+const CREW_LAST_NAMES = [
+  "Voss",
+  "Chen",
+  "Okafor",
+  "Park",
+  "Singh",
+  "Reyes",
+  "Kim",
+  "Tanaka",
+  "Novak",
+  "Petrov",
+  "Lam",
+  "Anders",
+  "Torres",
+  "Sato",
+  "Fernandez",
+];
+
+const CREW_ROLES = [
+  "engineer",
+  "geologist",
+  "pilot",
+  "scientist",
+  "medic",
+] as const;
+
+function randomPick<T>(arr: readonly T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]!;
+}
+
+function randomInt(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+/** Map crew role → natural module specialty */
+const ROLE_SPECIALTY: Record<string, ModuleType[]> = {
+  engineer: ["SOLAR_PANEL", "OXYGEN_GENERATOR", "STORAGE_DEPOT"],
+  geologist: ["MINING_RIG", "WATER_EXTRACTOR"],
+  pilot: ["LAUNCH_PAD"],
+  scientist: ["RESEARCH_LAB"],
+  medic: ["HABITAT", "OXYGEN_GENERATOR"],
+};
+
+export interface RecruitedCrew {
+  id: string;
+  name: string;
+  role: string;
+  specialty: ModuleType | null;
+  level: number;
+  efficiencyBonus: number;
+  outputBonus: number;
+}
+
+/**
+ * Recruit a random crew member. Costs $LUNAR, respects the max cap.
+ */
+export async function recruitCrew(playerId: string): Promise<{
+  success: boolean;
+  error?: string;
+  crew?: RecruitedCrew;
+  cost?: number;
+}> {
+  const player = await prisma.player.findUnique({
+    where: { id: playerId },
+  });
+  if (!player) return { success: false, error: "Player not found" };
+
+  const existingCount = await prisma.crewMember.count({
+    where: { playerId, isActive: true, deletedAt: null },
+  });
+  if (existingCount >= MAX_CREW) {
+    return { success: false, error: `Crew full (${MAX_CREW}/${MAX_CREW})` };
+  }
+
+  const balance = d(player.lunarBalance);
+  if (balance < CREW_HIRE_COST) {
+    return {
+      success: false,
+      error: `Not enough $LUNAR. Need ${CREW_HIRE_COST}, have ${Math.floor(balance)}.`,
+    };
+  }
+
+  // Generate random crew member
+  const firstName = randomPick(CREW_FIRST_NAMES);
+  const lastName = randomPick(CREW_LAST_NAMES);
+  const name = `${firstName} ${lastName}`;
+  const role = randomPick(CREW_ROLES);
+  const specialtyCandidates = ROLE_SPECIALTY[role] ?? [];
+  const specialty =
+    specialtyCandidates.length > 0 ? randomPick(specialtyCandidates) : null;
+  const efficiencyBonus = randomInt(3, 12);
+  const outputBonus = randomInt(5, 15);
+
+  const newBalance = balance - CREW_HIRE_COST;
+
+  const [, newCrew] = await prisma.$transaction([
+    prisma.player.update({
+      where: { id: playerId, version: player.version },
+      data: {
+        lunarBalance: { decrement: CREW_HIRE_COST },
+        crewCount: { increment: 1 },
+        version: { increment: 1 },
+      },
+    }),
+    prisma.crewMember.create({
+      data: {
+        playerId,
+        name,
+        role,
+        specialty,
+        efficiencyBonus,
+        outputBonus,
+      },
+    }),
+    prisma.transaction.create({
+      data: {
+        playerId,
+        type: "BUILD",
+        resource: "LUNAR",
+        amount: -CREW_HIRE_COST,
+        balanceAfter: newBalance,
+        description: `Recruited ${name} (${role})`,
+        metadata: { crewName: name, role, specialty },
+      },
+    }),
+    prisma.gameEvent.create({
+      data: {
+        playerId,
+        type: "recruit",
+        data: { crewName: name, role, specialty, cost: CREW_HIRE_COST },
+      },
+    }),
+  ]);
+
+  GameMetrics.trackPlayerAction(playerId, "recruit", {
+    crewName: name,
+    role,
+    specialty,
+    cost: CREW_HIRE_COST,
+    crewCount: existingCount + 1,
+  });
+
+  return {
+    success: true,
+    cost: CREW_HIRE_COST,
+    crew: {
+      id: newCrew.id,
+      name: newCrew.name,
+      role: newCrew.role,
+      specialty: newCrew.specialty as ModuleType | null,
+      level: newCrew.level,
+      efficiencyBonus: d(newCrew.efficiencyBonus),
+      outputBonus: d(newCrew.outputBonus),
+    },
+  };
+}
+
 // --- Crew Assignment ---
 
 /**
@@ -626,6 +806,7 @@ export const gameEngine = {
   calculateModuleCost,
   buildModule,
   upgradeModule,
+  recruitCrew,
   assignCrew,
   collectEarnings,
   syncPlayerSummary,

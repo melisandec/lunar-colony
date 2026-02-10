@@ -193,3 +193,30 @@ export function useAssignCrew() {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Recruit crew mutation
+// ---------------------------------------------------------------------------
+
+export function useRecruitCrew() {
+  const fid = useGameStore((s) => s.fid);
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/dashboard/${fid}/action`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "recruit" }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Recruitment failed");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["colony", fid] });
+    },
+  });
+}

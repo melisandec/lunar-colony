@@ -4,6 +4,7 @@ import {
   collectEarnings,
   buildModule,
   upgradeModule,
+  recruitCrew,
   assignCrew,
 } from "@/lib/game-engine";
 import prisma from "@/lib/database";
@@ -111,6 +112,17 @@ export async function POST(
           );
         }
         return NextResponse.json(assignResult);
+      }
+
+      case "recruit": {
+        const recruitResult = await recruitCrew(player.id);
+        if (!recruitResult.success) {
+          return NextResponse.json(
+            { error: recruitResult.error },
+            { status: 400 },
+          );
+        }
+        return NextResponse.json(recruitResult);
       }
 
       case "trade": {
