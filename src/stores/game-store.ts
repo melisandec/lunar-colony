@@ -41,6 +41,8 @@ export interface ColonyData {
   playerId: string;
   playerName: string;
   level: number;
+  xp: number;
+  xpForNextLevel: number;
   lunarBalance: number;
   modules: DashboardModule[];
   crew: DashboardCrew[];

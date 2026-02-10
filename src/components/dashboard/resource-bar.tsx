@@ -115,15 +115,30 @@ export function ResourceBar() {
         </span>
       </div>
 
-      {/* Level */}
+      {/* Level + XP */}
       <div
         className="hidden items-center gap-1.5 md:flex"
-        aria-label={`Level ${colony.level}`}
+        aria-label={`Level ${colony.level}, ${colony.xp ?? 0} of ${colony.xpForNextLevel ?? 100} XP`}
       >
         <span className="text-sm" aria-hidden="true">
           ⭐
         </span>
         <span className="text-xs text-amber-400">Lv.{colony.level}</span>
+        {colony.xpForNextLevel && (
+          <div className="flex items-center gap-1">
+            <div className="h-1.5 w-12 rounded-full bg-slate-800">
+              <div
+                className="h-full rounded-full bg-amber-500 transition-all"
+                style={{
+                  width: `${Math.min(100, ((colony.xp ?? 0) / colony.xpForNextLevel) * 100)}%`,
+                }}
+              />
+            </div>
+            <span className="text-[9px] text-slate-600 tabular-nums">
+              {colony.xp ?? 0}/{colony.xpForNextLevel}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Divider */}

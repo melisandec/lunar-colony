@@ -92,11 +92,17 @@ export function useBuildModule() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: async (moduleType: string) => {
+    mutationFn: async ({
+      moduleType,
+      tier = "COMMON",
+    }: {
+      moduleType: string;
+      tier?: string;
+    }) => {
       const res = await fetch(`/api/dashboard/${fid}/action`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "build", moduleType }),
+        body: JSON.stringify({ action: "build", moduleType, tier }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -218,5 +224,143 @@ export function useRecruitCrew() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["colony", fid] });
     },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Toggle module (activate/deactivate) mutation
+// ---------------------------------------------------------------------------
+
+export function useToggleModule() {
+  const fid = useGameStore((s) => s.fid);
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (moduleId: string) => {
+      const res = await fetch(`/api/dashboard/${fid}/action`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "toggle", moduleId }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Toggle failed");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["colony", fid] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Repair module mutation
+// ---------------------------------------------------------------------------
+
+export function useRepairModule() {
+  const fid = useGameStore((s) => s.fid);
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (moduleId: string) => {
+      const res = await fetch(`/api/dashboard/${fid}/action`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "repair", moduleId }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Repair failed");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["colony", fid] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Demolish module mutation
+// ---------------------------------------------------------------------------
+
+export function useDemolishModule() {
+  const fid = useGameStore((s) => s.fid);
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (moduleId: string) => {
+      const res = await fetch(`/api/dashboard/${fid}/action`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "demolish", moduleId }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Demolish failed");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["colony", fid] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Daily reward mutation
+// ---------------------------------------------------------------------------
+
+export function useDailyReward() {
+  const fid = useGameStore((s) => s.fid);
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/dashboard/${fid}/action`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "daily-reward" }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Daily reward failed");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["colony", fid] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Blueprints query
+// ---------------------------------------------------------------------------
+
+export interface Blueprint {
+  id: string;
+  type: string;
+  tier: string;
+  name: string;
+  description: string | null;
+  baseOutput: number;
+  baseCost: number;
+  upgradeCost: number;
+  maxLevel: number;
+  unlockLevel: number;
+  unlocked: boolean;
+}
+
+export function useBlueprints(playerLevel: number) {
+  return useQuery<{ blueprints: Blueprint[] }>({
+    queryKey: ["blueprints", playerLevel],
+    queryFn: async () => {
+      const res = await fetch(`/api/blueprints?playerLevel=${playerLevel}`);
+      if (!res.ok) throw new Error("Failed to load blueprints");
+      return res.json();
+    },
+    staleTime: 60_000, // blueprints are mostly static
   });
 }

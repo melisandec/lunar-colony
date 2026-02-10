@@ -75,11 +75,16 @@ export async function GET(
       });
     }
 
+    // XP needed for next level
+    const xpForNextLevel = Math.floor(100 * Math.pow(player.level, 1.5));
+
     return NextResponse.json(
       {
         playerId: colony.playerId,
         playerName: colony.playerName,
         level: colony.level,
+        xp: Number(player.xp),
+        xpForNextLevel,
         lunarBalance: colony.lunarBalance,
         modules: colony.modules,
         crew: crew.map((c) => ({

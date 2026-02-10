@@ -6,6 +6,16 @@ import {
   upgradeModule,
   recruitCrew,
   assignCrew,
+  toggleModule,
+  repairModule,
+  demolishModule,
+  claimDailyReward,
+  createAlliance,
+  joinAlliance,
+  leaveAlliance,
+  createPriceAlert,
+  getPlayerAlerts,
+  markAlertRead,
 } from "@/lib/game-engine";
 import prisma from "@/lib/database";
 import type { ModuleType } from "@/lib/utils";
@@ -36,14 +46,18 @@ export async function POST(
       }
 
       case "build": {
-        const { moduleType } = body;
+        const { moduleType, tier } = body;
         if (!moduleType) {
           return NextResponse.json(
             { error: "moduleType required" },
             { status: 400 },
           );
         }
-        const result = await buildModule(player.id, moduleType as ModuleType);
+        const result = await buildModule(
+          player.id,
+          moduleType as ModuleType,
+          tier ?? "COMMON",
+        );
         return NextResponse.json(result);
       }
 
@@ -134,6 +148,158 @@ export async function POST(
           body.quantity,
         );
         return NextResponse.json(result);
+      }
+
+      case "toggle": {
+        const { moduleId } = body;
+        if (!moduleId) {
+          return NextResponse.json(
+            { error: "moduleId required" },
+            { status: 400 },
+          );
+        }
+        const toggleResult = await toggleModule(player.id, moduleId);
+        if (!toggleResult.success) {
+          return NextResponse.json(
+            { error: toggleResult.error },
+            { status: 400 },
+          );
+        }
+        return NextResponse.json(toggleResult);
+      }
+
+      case "repair": {
+        const { moduleId } = body;
+        if (!moduleId) {
+          return NextResponse.json(
+            { error: "moduleId required" },
+            { status: 400 },
+          );
+        }
+        const repairResult = await repairModule(player.id, moduleId);
+        if (!repairResult.success) {
+          return NextResponse.json(
+            { error: repairResult.error },
+            { status: 400 },
+          );
+        }
+        return NextResponse.json(repairResult);
+      }
+
+      case "demolish": {
+        const { moduleId } = body;
+        if (!moduleId) {
+          return NextResponse.json(
+            { error: "moduleId required" },
+            { status: 400 },
+          );
+        }
+        const demolishResult = await demolishModule(player.id, moduleId);
+        if (!demolishResult.success) {
+          return NextResponse.json(
+            { error: demolishResult.error },
+            { status: 400 },
+          );
+        }
+        return NextResponse.json(demolishResult);
+      }
+
+      case "daily-reward": {
+        const dailyResult = await claimDailyReward(player.id);
+        if (!dailyResult.success) {
+          return NextResponse.json(
+            { error: dailyResult.error },
+            { status: 400 },
+          );
+        }
+        return NextResponse.json(dailyResult);
+      }
+
+      case "create-alliance": {
+        const { name, description } = body;
+        if (!name) {
+          return NextResponse.json(
+            { error: "Alliance name required" },
+            { status: 400 },
+          );
+        }
+        const createResult = await createAlliance(player.id, name, description);
+        if (!createResult.success) {
+          return NextResponse.json(
+            { error: createResult.error },
+            { status: 400 },
+          );
+        }
+        return NextResponse.json(createResult);
+      }
+
+      case "join-alliance": {
+        const { allianceId } = body;
+        if (!allianceId) {
+          return NextResponse.json(
+            { error: "allianceId required" },
+            { status: 400 },
+          );
+        }
+        const joinResult = await joinAlliance(player.id, allianceId);
+        if (!joinResult.success) {
+          return NextResponse.json(
+            { error: joinResult.error },
+            { status: 400 },
+          );
+        }
+        return NextResponse.json(joinResult);
+      }
+
+      case "leave-alliance": {
+        const leaveResult = await leaveAlliance(player.id);
+        if (!leaveResult.success) {
+          return NextResponse.json(
+            { error: leaveResult.error },
+            { status: 400 },
+          );
+        }
+        return NextResponse.json(leaveResult);
+      }
+
+      case "create-alert": {
+        const { resource, targetPrice, direction } = body;
+        if (!resource || !targetPrice || !direction) {
+          return NextResponse.json(
+            { error: "resource, targetPrice, direction required" },
+            { status: 400 },
+          );
+        }
+        const alertResult = await createPriceAlert(
+          player.id,
+          resource,
+          targetPrice,
+          direction,
+        );
+        if (!alertResult.success) {
+          return NextResponse.json(
+            { error: alertResult.error },
+            { status: 400 },
+          );
+        }
+        return NextResponse.json(alertResult);
+      }
+
+      case "get-alerts": {
+        const alerts = await getPlayerAlerts(player.id);
+        return NextResponse.json({ alerts });
+      }
+
+      case "mark-alert-read": {
+        const { alertId } = body;
+        if (!alertId) {
+          return NextResponse.json(
+            { error: "alertId required" },
+            { status: 400 },
+          );
+        }
+        const markResult = await markAlertRead(player.id, alertId);
+        return NextResponse.json(markResult);
       }
 
       default:

@@ -226,6 +226,7 @@ export function calculateModuleCost(
 export async function buildModule(
   playerId: string,
   moduleType: ModuleType,
+  tier: "COMMON" | "UNCOMMON" | "RARE" | "EPIC" | "LEGENDARY" = "COMMON",
 ): Promise<{ success: boolean; error?: string; module?: ModuleState }> {
   const player = await prisma.player.findUnique({
     where: { id: playerId },
@@ -242,7 +243,32 @@ export async function buildModule(
     return { success: false, error: "Colony is full! Max modules reached." };
   }
 
-  const cost = calculateModuleCost(moduleType, moduleCount);
+  // Look up the blueprint for this type+tier
+  const blueprint = await prisma.moduleBlueprint.findUnique({
+    where: { type_tier: { type: moduleType, tier } },
+  });
+
+  // Determine cost & output from blueprint, falling back to hardcoded COMMON values
+  let cost: number;
+  let baseOutput: number;
+  if (blueprint) {
+    if (player.level < blueprint.unlockLevel) {
+      return {
+        success: false,
+        error: `${tier} tier requires level ${blueprint.unlockLevel}. You are level ${player.level}.`,
+      };
+    }
+    cost = Math.floor(
+      Number(blueprint.baseCost) *
+        Math.pow(GAME_CONSTANTS.MODULE_COST_MULTIPLIER, moduleCount),
+    );
+    baseOutput = Number(blueprint.baseOutput);
+  } else {
+    // Fallback for COMMON or missing blueprint data
+    cost = calculateModuleCost(moduleType, moduleCount);
+    baseOutput = STARTER_BASE_OUTPUT[moduleType];
+  }
+
   const balance = d(player.lunarBalance);
 
   if (balance < cost) {
@@ -251,9 +277,6 @@ export async function buildModule(
       error: `Not enough $LUNAR. Need ${cost}, have ${Math.floor(balance)}.`,
     };
   }
-
-  // Production rate based on COMMON tier blueprint
-  const baseOutput = STARTER_BASE_OUTPUT[moduleType];
 
   // Find next open grid position (simple sequential)
   const usedPositions = new Set(
@@ -286,10 +309,10 @@ export async function buildModule(
       data: {
         playerId,
         type: moduleType,
-        tier: "COMMON",
+        tier,
         level: 1,
         coordinates: coords,
-        baseOutput: baseOutput,
+        baseOutput,
         efficiency: 100,
       },
     }),
@@ -300,25 +323,36 @@ export async function buildModule(
         resource: "LUNAR",
         amount: -cost,
         balanceAfter: newBalance,
-        description: `Built ${moduleType} (COMMON)`,
-        metadata: { moduleType, cost, coordinates: coords },
+        description: `Built ${moduleType} (${tier})`,
+        metadata: { moduleType, tier, cost, coordinates: coords },
       },
     }),
     prisma.gameEvent.create({
       data: {
         playerId,
         type: "build",
-        data: { moduleType, tier: "COMMON", cost, coordinates: coords },
+        data: { moduleType, tier, cost, coordinates: coords },
       },
     }),
   ]);
 
   GameMetrics.trackPlayerAction(playerId, "build", {
     moduleType,
-    tier: "COMMON",
+    tier,
     cost,
     moduleCount: moduleCount + 1,
   });
+
+  // Grant XP — higher tiers grant more XP
+  const tierXP: Record<string, number> = {
+    COMMON: 50,
+    UNCOMMON: 75,
+    RARE: 100,
+    EPIC: 150,
+    LEGENDARY: 250,
+  };
+  grantXP(playerId, tierXP[tier] ?? 50, "build_module").catch(() => {});
+  checkAchievements(playerId).catch(() => {});
 
   return {
     success: true,
@@ -399,6 +433,10 @@ export async function collectEarnings(playerId: string): Promise<{
     newBalance: d(updatedPlayer.lunarBalance),
     moduleCount: player.modules.length,
   });
+
+  // Grant XP and check achievements (fire-and-forget)
+  grantXP(playerId, 10, "collect_earnings").catch(() => {});
+  checkAchievements(playerId).catch(() => {});
 
   return {
     collected: state.pendingEarnings,
@@ -524,6 +562,10 @@ export async function upgradeModule(
     newLevel,
     cost,
   });
+
+  // Grant XP and check achievements (fire-and-forget)
+  grantXP(playerId, 25, "upgrade_module").catch(() => {});
+  checkAchievements(playerId).catch(() => {});
 
   return {
     success: true,
@@ -800,6 +842,753 @@ export async function assignCrew(
   return { success: true };
 }
 
+// --- Module Activate / Deactivate ---
+
+/**
+ * Toggle a module's active state.
+ */
+export async function toggleModule(
+  playerId: string,
+  moduleId: string,
+): Promise<{ success: boolean; error?: string; isActive?: boolean }> {
+  const mod = await prisma.module.findFirst({
+    where: { id: moduleId, playerId, deletedAt: null },
+  });
+  if (!mod) return { success: false, error: "Module not found" };
+
+  const newActive = !mod.isActive;
+  await prisma.module.update({
+    where: { id: moduleId, version: mod.version },
+    data: { isActive: newActive, version: { increment: 1 } },
+  });
+
+  GameMetrics.trackPlayerAction(playerId, "toggle_module", {
+    moduleId,
+    moduleType: mod.type,
+    isActive: newActive,
+  });
+
+  return { success: true, isActive: newActive };
+}
+
+// --- Module Repair ---
+
+const REPAIR_COST_PER_POINT = 5; // $LUNAR per efficiency % restored
+
+/**
+ * Repair a module back to full efficiency. Costs $LUNAR based on damage.
+ */
+export async function repairModule(
+  playerId: string,
+  moduleId: string,
+): Promise<{
+  success: boolean;
+  error?: string;
+  cost?: number;
+  newEfficiency?: number;
+}> {
+  const player = await prisma.player.findUnique({
+    where: { id: playerId },
+  });
+  if (!player) return { success: false, error: "Player not found" };
+
+  const mod = await prisma.module.findFirst({
+    where: { id: moduleId, playerId, deletedAt: null },
+  });
+  if (!mod) return { success: false, error: "Module not found" };
+
+  const currentEff = d(mod.efficiency);
+  if (currentEff >= 100) {
+    return { success: false, error: "Module is already at full efficiency" };
+  }
+
+  const damage = 100 - currentEff;
+  const cost = Math.ceil(damage * REPAIR_COST_PER_POINT);
+  const balance = d(player.lunarBalance);
+
+  if (balance < cost) {
+    return {
+      success: false,
+      error: `Not enough $LUNAR. Need ${cost}, have ${Math.floor(balance)}.`,
+    };
+  }
+
+  const newBalance = balance - cost;
+
+  await prisma.$transaction([
+    prisma.player.update({
+      where: { id: playerId, version: player.version },
+      data: {
+        lunarBalance: { decrement: cost },
+        version: { increment: 1 },
+      },
+    }),
+    prisma.module.update({
+      where: { id: moduleId, version: mod.version },
+      data: {
+        efficiency: 100,
+        ageInCycles: 0,
+        version: { increment: 1 },
+      },
+    }),
+    prisma.transaction.create({
+      data: {
+        playerId,
+        type: "BUILD",
+        resource: "LUNAR",
+        amount: -cost,
+        balanceAfter: newBalance,
+        description: `Repaired ${mod.type} (${Math.round(damage)}% damage)`,
+        metadata: { moduleId, moduleType: mod.type, damage, cost },
+      },
+    }),
+  ]);
+
+  GameMetrics.trackPlayerAction(playerId, "repair", {
+    moduleType: mod.type,
+    damage,
+    cost,
+  });
+
+  return { success: true, cost, newEfficiency: 100 };
+}
+
+// --- Module Demolish ---
+
+const DEMOLISH_REFUND_PERCENT = 25; // get back 25% of build cost
+
+/**
+ * Soft-delete a module. Refunds a fraction of build cost.
+ */
+export async function demolishModule(
+  playerId: string,
+  moduleId: string,
+): Promise<{ success: boolean; error?: string; refund?: number }> {
+  const player = await prisma.player.findUnique({
+    where: { id: playerId },
+  });
+  if (!player) return { success: false, error: "Player not found" };
+
+  const mod = await prisma.module.findFirst({
+    where: { id: moduleId, playerId, deletedAt: null },
+  });
+  if (!mod) return { success: false, error: "Module not found" };
+
+  // Calculate refund based on base build cost
+  const baseCost = STARTER_BASE_OUTPUT[mod.type as ModuleType]
+    ? calculateModuleCost(mod.type as ModuleType, 0)
+    : 100;
+  const refund = Math.floor(baseCost * (DEMOLISH_REFUND_PERCENT / 100));
+  const newBalance = d(player.lunarBalance) + refund;
+
+  // Unassign any crew on this module
+  await prisma.crewMember.updateMany({
+    where: { assignedModuleId: moduleId, playerId },
+    data: { assignedModuleId: null },
+  });
+
+  await prisma.$transaction([
+    prisma.module.update({
+      where: { id: moduleId },
+      data: { deletedAt: new Date(), isActive: false },
+    }),
+    prisma.player.update({
+      where: { id: playerId, version: player.version },
+      data: {
+        lunarBalance: { increment: refund },
+        moduleCount: { decrement: 1 },
+        version: { increment: 1 },
+      },
+    }),
+    prisma.transaction.create({
+      data: {
+        playerId,
+        type: "REFUND",
+        resource: "LUNAR",
+        amount: refund,
+        balanceAfter: newBalance,
+        description: `Demolished ${mod.type} (+${refund} refund)`,
+        metadata: { moduleId, moduleType: mod.type, refund },
+      },
+    }),
+    prisma.gameEvent.create({
+      data: {
+        playerId,
+        type: "demolish",
+        data: { moduleId, moduleType: mod.type, refund },
+      },
+    }),
+  ]);
+
+  GameMetrics.trackPlayerAction(playerId, "demolish", {
+    moduleType: mod.type,
+    refund,
+  });
+
+  return { success: true, refund };
+}
+
+// --- XP & Leveling ---
+
+/**
+ * XP thresholds: XP needed = 100 * level^1.5
+ */
+function xpForLevel(level: number): number {
+  return Math.floor(100 * Math.pow(level, 1.5));
+}
+
+/**
+ * Grant XP and automatically level up if threshold is reached.
+ * Returns the new level if a level-up occurred.
+ */
+export async function grantXP(
+  playerId: string,
+  amount: number,
+  reason: string,
+): Promise<{ newXP: number; newLevel: number; leveledUp: boolean }> {
+  const player = await prisma.player.findUnique({
+    where: { id: playerId },
+  });
+  if (!player) return { newXP: 0, newLevel: 1, leveledUp: false };
+
+  let currentXP = d(player.xp) + amount;
+  let currentLevel = player.level;
+  let leveledUp = false;
+
+  // Check for multi-level ups
+  while (currentXP >= xpForLevel(currentLevel)) {
+    currentXP -= xpForLevel(currentLevel);
+    currentLevel++;
+    leveledUp = true;
+  }
+
+  await prisma.player.update({
+    where: { id: playerId },
+    data: {
+      xp: currentXP,
+      level: currentLevel,
+    },
+  });
+
+  if (leveledUp) {
+    await prisma.gameEvent.create({
+      data: {
+        playerId,
+        type: "level_up",
+        data: { newLevel: currentLevel, xpGranted: amount, reason },
+      },
+    });
+    GameMetrics.trackPlayerAction(playerId, "level_up", {
+      newLevel: currentLevel,
+      xpGranted: amount,
+    });
+  }
+
+  return { newXP: currentXP, newLevel: currentLevel, leveledUp };
+}
+
+// --- Daily Rewards ---
+
+const DAILY_REWARD_BASE = 50;
+const DAILY_STREAK_MULTIPLIER = 1.1;
+const MAX_DAILY_STREAK = 30;
+
+/**
+ * Claim the daily login reward. Grows with streak.
+ */
+export async function claimDailyReward(playerId: string): Promise<{
+  success: boolean;
+  error?: string;
+  reward?: number;
+  streak?: number;
+  xpGained?: number;
+}> {
+  const player = await prisma.player.findUnique({
+    where: { id: playerId },
+  });
+  if (!player) return { success: false, error: "Player not found" };
+
+  const now = new Date();
+  const lastDaily = player.lastDailyAt;
+
+  if (lastDaily) {
+    const lastDate = new Date(lastDaily);
+    const todayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
+    const lastDailyDate = new Date(
+      lastDate.getFullYear(),
+      lastDate.getMonth(),
+      lastDate.getDate(),
+    );
+
+    if (lastDailyDate.getTime() === todayStart.getTime()) {
+      return { success: false, error: "Already claimed today's reward!" };
+    }
+
+    // Check if streak continues (claimed yesterday)
+    const yesterday = new Date(todayStart);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isConsecutive = lastDailyDate.getTime() === yesterday.getTime();
+    if (!isConsecutive) {
+      // Break the streak
+      await prisma.player.update({
+        where: { id: playerId },
+        data: { dailyStreak: 0 },
+      });
+    }
+  }
+
+  // Reload to get potentially reset streak
+  const freshPlayer = await prisma.player.findUnique({
+    where: { id: playerId },
+  });
+  if (!freshPlayer) return { success: false, error: "Player not found" };
+
+  const newStreak = Math.min(freshPlayer.dailyStreak + 1, MAX_DAILY_STREAK);
+  const streakMultiplier = Math.pow(
+    DAILY_STREAK_MULTIPLIER,
+    Math.min(newStreak - 1, MAX_DAILY_STREAK - 1),
+  );
+  const reward = Math.floor(DAILY_REWARD_BASE * streakMultiplier);
+  const xpGained = 10 + newStreak * 2; // Bonus XP for streak
+  const newBalance = d(freshPlayer.lunarBalance) + reward;
+
+  await prisma.$transaction([
+    prisma.player.update({
+      where: { id: playerId, version: freshPlayer.version },
+      data: {
+        lunarBalance: { increment: reward },
+        dailyStreak: newStreak,
+        lastDailyAt: now,
+        version: { increment: 1 },
+      },
+    }),
+    prisma.transaction.create({
+      data: {
+        playerId,
+        type: "DAILY_REWARD",
+        resource: "LUNAR",
+        amount: reward,
+        balanceAfter: newBalance,
+        description: `Day ${newStreak} streak reward`,
+        metadata: { streak: newStreak, multiplier: streakMultiplier },
+      },
+    }),
+    prisma.gameEvent.create({
+      data: {
+        playerId,
+        type: "daily_reward",
+        data: { streak: newStreak, reward, xpGained },
+      },
+    }),
+  ]);
+
+  // Grant XP for daily claim
+  await grantXP(playerId, xpGained, "daily_reward");
+
+  GameMetrics.trackPlayerAction(playerId, "daily_reward", {
+    streak: newStreak,
+    reward,
+    xpGained,
+  });
+
+  return { success: true, reward, streak: newStreak, xpGained };
+}
+
+// --- Achievement System ---
+
+interface AchievementCheck {
+  key: string;
+  check: (stats: {
+    moduleCount: number;
+    level: number;
+    totalEarnings: number;
+    crewCount: number;
+  }) => boolean;
+}
+
+const ACHIEVEMENT_CHECKS: AchievementCheck[] = [
+  { key: "first_module", check: (s) => s.moduleCount >= 1 },
+  { key: "five_modules", check: (s) => s.moduleCount >= 5 },
+  { key: "ten_modules", check: (s) => s.moduleCount >= 10 },
+  { key: "twenty_modules", check: (s) => s.moduleCount >= 20 },
+  { key: "level_5", check: (s) => s.level >= 5 },
+  { key: "level_10", check: (s) => s.level >= 10 },
+  { key: "first_1k", check: (s) => s.totalEarnings >= 1000 },
+  { key: "first_10k", check: (s) => s.totalEarnings >= 10000 },
+  { key: "first_100k", check: (s) => s.totalEarnings >= 100000 },
+  { key: "first_crew", check: (s) => s.crewCount >= 1 },
+  { key: "full_crew", check: (s) => s.crewCount >= 5 },
+];
+
+/**
+ * Check and grant any newly-earned achievements.
+ * Call after state-changing actions (build, upgrade, collect, etc.)
+ */
+export async function checkAchievements(playerId: string): Promise<{
+  newAchievements: Array<{
+    key: string;
+    name: string;
+    xpReward: number;
+    lunarReward: number;
+  }>;
+}> {
+  const player = await prisma.player.findUnique({
+    where: { id: playerId },
+  });
+  if (!player) return { newAchievements: [] };
+
+  const stats = {
+    moduleCount: player.moduleCount,
+    level: player.level,
+    totalEarnings: d(player.totalEarnings),
+    crewCount: player.crewCount,
+  };
+
+  // Get already-unlocked achievement keys
+  const existing = await prisma.playerAchievement.findMany({
+    where: { playerId },
+    select: { achievement: { select: { key: true } } },
+  });
+  const alreadyUnlocked = new Set(existing.map((e) => e.achievement.key));
+
+  const newlyEarned: Array<{
+    key: string;
+    name: string;
+    xpReward: number;
+    lunarReward: number;
+  }> = [];
+
+  for (const ac of ACHIEVEMENT_CHECKS) {
+    if (alreadyUnlocked.has(ac.key)) continue;
+    if (!ac.check(stats)) continue;
+
+    // Find the achievement definition
+    const achievement = await prisma.achievement.findUnique({
+      where: { key: ac.key },
+    });
+    if (!achievement) continue;
+
+    // Grant achievement
+    await prisma.playerAchievement.create({
+      data: {
+        playerId,
+        achievementId: achievement.id,
+        progress: achievement.threshold,
+      },
+    });
+
+    // Grant rewards
+    const lunarReward = d(achievement.lunarReward);
+    if (lunarReward > 0) {
+      await prisma.player.update({
+        where: { id: playerId },
+        data: { lunarBalance: { increment: lunarReward } },
+      });
+      await prisma.transaction.create({
+        data: {
+          playerId,
+          type: "ACHIEVEMENT",
+          resource: "LUNAR",
+          amount: lunarReward,
+          balanceAfter: d(player.lunarBalance) + lunarReward,
+          description: `Achievement: ${achievement.name}`,
+          metadata: { achievementKey: ac.key },
+        },
+      });
+    }
+
+    if (achievement.xpReward > 0) {
+      await grantXP(playerId, achievement.xpReward, `achievement_${ac.key}`);
+    }
+
+    newlyEarned.push({
+      key: ac.key,
+      name: achievement.name,
+      xpReward: achievement.xpReward,
+      lunarReward,
+    });
+
+    await prisma.gameEvent.create({
+      data: {
+        playerId,
+        type: "achievement",
+        data: { key: ac.key, name: achievement.name },
+      },
+    });
+  }
+
+  return { newAchievements: newlyEarned };
+}
+
+// --- Alliance System ---
+
+const ALLIANCE_CREATE_COST = 1000;
+const ALLIANCE_MAX_MEMBERS = 10;
+
+/**
+ * Create a new alliance. Player becomes LEADER.
+ */
+export async function createAlliance(
+  playerId: string,
+  name: string,
+  description?: string,
+): Promise<{ success: boolean; error?: string; allianceId?: string }> {
+  const player = await prisma.player.findUnique({
+    where: { id: playerId },
+    include: { allianceMember: true },
+  });
+  if (!player) return { success: false, error: "Player not found" };
+  if (player.allianceMember) {
+    return { success: false, error: "Already in an alliance. Leave first." };
+  }
+
+  const balance = d(player.lunarBalance);
+  if (balance < ALLIANCE_CREATE_COST) {
+    return {
+      success: false,
+      error: `Not enough $LUNAR. Need ${ALLIANCE_CREATE_COST}, have ${Math.floor(balance)}.`,
+    };
+  }
+
+  // Check name uniqueness
+  const exists = await prisma.alliance.findUnique({ where: { name } });
+  if (exists) {
+    return { success: false, error: "Alliance name already taken" };
+  }
+
+  const newBalance = balance - ALLIANCE_CREATE_COST;
+
+  const [, alliance] = await prisma.$transaction([
+    prisma.player.update({
+      where: { id: playerId, version: player.version },
+      data: {
+        lunarBalance: { decrement: ALLIANCE_CREATE_COST },
+        version: { increment: 1 },
+      },
+    }),
+    prisma.alliance.create({
+      data: {
+        name,
+        description: description ?? null,
+        memberCount: 1,
+        maxMembers: ALLIANCE_MAX_MEMBERS,
+        members: {
+          create: {
+            playerId,
+            role: "LEADER",
+          },
+        },
+      },
+    }),
+    prisma.transaction.create({
+      data: {
+        playerId,
+        type: "BUILD",
+        resource: "LUNAR",
+        amount: -ALLIANCE_CREATE_COST,
+        balanceAfter: newBalance,
+        description: `Created alliance "${name}"`,
+        metadata: { allianceName: name },
+      },
+    }),
+    prisma.gameEvent.create({
+      data: {
+        playerId,
+        type: "alliance_create",
+        data: { allianceName: name },
+      },
+    }),
+  ]);
+
+  GameMetrics.trackPlayerAction(playerId, "alliance_create", {
+    allianceName: name,
+    cost: ALLIANCE_CREATE_COST,
+  });
+
+  return { success: true, allianceId: alliance.id };
+}
+
+/**
+ * Join an existing alliance.
+ */
+export async function joinAlliance(
+  playerId: string,
+  allianceId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const player = await prisma.player.findUnique({
+    where: { id: playerId },
+    include: { allianceMember: true },
+  });
+  if (!player) return { success: false, error: "Player not found" };
+  if (player.allianceMember) {
+    return { success: false, error: "Already in an alliance. Leave first." };
+  }
+
+  const alliance = await prisma.alliance.findUnique({
+    where: { id: allianceId, deletedAt: null },
+  });
+  if (!alliance) return { success: false, error: "Alliance not found" };
+  if (alliance.memberCount >= alliance.maxMembers) {
+    return { success: false, error: "Alliance is full" };
+  }
+
+  await prisma.$transaction([
+    prisma.allianceMember.create({
+      data: {
+        playerId,
+        allianceId,
+        role: "MEMBER",
+      },
+    }),
+    prisma.alliance.update({
+      where: { id: allianceId },
+      data: { memberCount: { increment: 1 } },
+    }),
+    prisma.gameEvent.create({
+      data: {
+        playerId,
+        type: "alliance_join",
+        data: { allianceId, allianceName: alliance.name },
+      },
+    }),
+  ]);
+
+  return { success: true };
+}
+
+/**
+ * Leave current alliance.
+ */
+export async function leaveAlliance(
+  playerId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const member = await prisma.allianceMember.findUnique({
+    where: { playerId },
+    include: { alliance: true },
+  });
+  if (!member) return { success: false, error: "Not in an alliance" };
+
+  if (member.role === "LEADER" && member.alliance.memberCount > 1) {
+    return {
+      success: false,
+      error: "Leaders must transfer leadership or disband the alliance first",
+    };
+  }
+
+  await prisma.$transaction([
+    prisma.allianceMember.delete({ where: { id: member.id } }),
+    prisma.alliance.update({
+      where: { id: member.allianceId },
+      data: {
+        memberCount: { decrement: 1 },
+        ...(member.alliance.memberCount <= 1 ? { deletedAt: new Date() } : {}),
+      },
+    }),
+  ]);
+
+  return { success: true };
+}
+
+// --- Price Alert ---
+
+/**
+ * Create a price alert for a resource.
+ */
+export async function createPriceAlert(
+  playerId: string,
+  resource: string,
+  targetPrice: number,
+  direction: "above" | "below",
+): Promise<{ success: boolean; error?: string; alertId?: string }> {
+  const currentPrice = await prisma.resourcePrice.findUnique({
+    where: {
+      type: resource as
+        | "LUNAR"
+        | "REGOLITH"
+        | "WATER_ICE"
+        | "HELIUM3"
+        | "RARE_EARTH",
+    },
+  });
+  if (!currentPrice) return { success: false, error: "Unknown resource" };
+
+  const alert = await prisma.priceAlert.create({
+    data: {
+      playerId,
+      resource: resource as
+        | "LUNAR"
+        | "REGOLITH"
+        | "WATER_ICE"
+        | "HELIUM3"
+        | "RARE_EARTH",
+      priceAtAlert: d(currentPrice.currentPrice),
+      changePercent: 0,
+      direction,
+      message: `Alert: ${resource} ${direction} ${targetPrice}`,
+    },
+  });
+
+  return { success: true, alertId: alert.id };
+}
+
+/**
+ * Get all alerts for a player.
+ */
+export async function getPlayerAlerts(playerId: string) {
+  return prisma.priceAlert.findMany({
+    where: { playerId },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
+}
+
+/**
+ * Mark an alert as read.
+ */
+export async function markAlertRead(
+  playerId: string,
+  alertId: string,
+): Promise<{ success: boolean }> {
+  await prisma.priceAlert.updateMany({
+    where: { id: alertId, playerId },
+    data: { isRead: true },
+  });
+  return { success: true };
+}
+
+// --- GameConfig Runtime Reading ---
+
+const configCache = new Map<string, { value: unknown; fetchedAt: number }>();
+const CONFIG_TTL = 60_000; // 1 minute cache
+
+/**
+ * Read a GameConfig value from DB with in-memory caching.
+ * Falls back to defaultValue if key not found.
+ */
+export async function getGameConfig<T>(
+  key: string,
+  defaultValue: T,
+): Promise<T> {
+  const cached = configCache.get(key);
+  if (cached && Date.now() - cached.fetchedAt < CONFIG_TTL) {
+    return cached.value as T;
+  }
+
+  const config = await prisma.gameConfig.findUnique({
+    where: { key },
+  });
+
+  if (!config) return defaultValue;
+
+  const value = config.value as T;
+  configCache.set(key, { value, fetchedAt: Date.now() });
+  return value;
+}
+
 export const gameEngine = {
   getOrCreatePlayer,
   calculateColonyState,
@@ -810,6 +1599,19 @@ export const gameEngine = {
   assignCrew,
   collectEarnings,
   syncPlayerSummary,
+  toggleModule,
+  repairModule,
+  demolishModule,
+  grantXP,
+  claimDailyReward,
+  checkAchievements,
+  createAlliance,
+  joinAlliance,
+  leaveAlliance,
+  createPriceAlert,
+  getPlayerAlerts,
+  markAlertRead,
+  getGameConfig,
 };
 
 export default gameEngine;

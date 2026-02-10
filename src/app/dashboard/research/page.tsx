@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { useColony } from "@/hooks/use-colony";
+import { useColony, useBlueprints, type Blueprint } from "@/hooks/use-colony";
 import { GAME_CONSTANTS } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -13,32 +13,37 @@ const TIERS = ["COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY"] as const;
 
 const TIER_COLORS: Record<
   string,
-  { bg: string; border: string; text: string }
+  { bg: string; border: string; text: string; ring: string }
 > = {
   COMMON: {
     bg: "bg-slate-800/50",
     border: "border-slate-600",
     text: "text-slate-300",
+    ring: "ring-slate-300/20",
   },
   UNCOMMON: {
     bg: "bg-emerald-900/20",
     border: "border-emerald-600/40",
     text: "text-emerald-400",
+    ring: "ring-emerald-400/20",
   },
   RARE: {
     bg: "bg-blue-900/20",
     border: "border-blue-500/40",
     text: "text-blue-400",
+    ring: "ring-blue-400/20",
   },
   EPIC: {
     bg: "bg-purple-900/20",
     border: "border-purple-500/40",
     text: "text-purple-400",
+    ring: "ring-purple-400/20",
   },
   LEGENDARY: {
     bg: "bg-amber-900/20",
     border: "border-amber-500/40",
     text: "text-amber-400",
+    ring: "ring-amber-400/20",
   },
 };
 
@@ -113,6 +118,19 @@ const MODULE_META: Record<
 export default function ResearchPage() {
   const { data: colony, isLoading } = useColony();
   const playerLevel = colony?.level ?? 1;
+  const { data: bpData } = useBlueprints(playerLevel);
+
+  // Build a lookup: type → tier → blueprint
+  const blueprintMap = useMemo(() => {
+    const map = new Map<string, Map<string, Blueprint>>();
+    if (bpData?.blueprints) {
+      for (const bp of bpData.blueprints) {
+        if (!map.has(bp.type)) map.set(bp.type, new Map());
+        map.get(bp.type)!.set(bp.tier, bp);
+      }
+    }
+    return map;
+  }, [bpData]);
 
   // Figure out which tiers each module type has been built at
   const builtTiers = useMemo(() => {
@@ -163,7 +181,15 @@ export default function ResearchPage() {
       <div className="flex flex-wrap gap-2">
         {TIERS.map((tier) => {
           const colors = TIER_COLORS[tier]!;
-          const unlocked = playerLevel >= (TIER_REQUIREMENTS[tier] ?? 99);
+          // Use average unlock level from blueprints if available
+          const tierBlueprints = bpData?.blueprints.filter(
+            (b) => b.tier === tier,
+          );
+          const avgUnlockLv =
+            tierBlueprints && tierBlueprints.length > 0
+              ? Math.min(...tierBlueprints.map((b) => b.unlockLevel))
+              : (TIER_REQUIREMENTS[tier] ?? 99);
+          const unlocked = playerLevel >= avgUnlockLv;
           return (
             <div
               key={tier}
@@ -175,9 +201,7 @@ export default function ResearchPage() {
             >
               {unlocked ? "✅" : "🔒"}{" "}
               <span className="font-medium">{tier}</span>
-              <span className="text-[10px] opacity-60">
-                Lv.{TIER_REQUIREMENTS[tier]}
-              </span>
+              <span className="text-[10px] opacity-60">Lv.{avgUnlockLv}</span>
             </div>
           );
         })}
@@ -230,7 +254,9 @@ export default function ResearchPage() {
 
                 {/* Tier nodes */}
                 {TIERS.map((tier, tierIdx) => {
-                  const unlockLv = TIER_REQUIREMENTS[tier] ?? 99;
+                  const bp = blueprintMap.get(type)?.get(tier);
+                  const unlockLv =
+                    bp?.unlockLevel ?? TIER_REQUIREMENTS[tier] ?? 99;
                   const unlocked = playerLevel >= unlockLv;
                   const hasBuilt = built.has(tier);
                   const colors = TIER_COLORS[tier]!;
@@ -247,16 +273,16 @@ export default function ResearchPage() {
                           whileHover={unlocked ? { scale: 1.1 } : undefined}
                           className={`flex h-14 w-14 flex-col items-center justify-center rounded-lg border transition ${
                             hasBuilt
-                              ? `${colors.border} ${colors.bg} ring-2 ring-${colors.text.replace("text-", "")}/20`
+                              ? `${colors.border} ${colors.bg} ring-2 ${colors.ring}`
                               : unlocked
                                 ? `${colors.border} ${colors.bg} opacity-80`
                                 : "border-slate-800/60 bg-slate-900/50 opacity-40"
                           }`}
                           title={
                             hasBuilt
-                              ? `${tier} — Built!`
+                              ? `${tier} — Built! Output: ${bp?.baseOutput ?? "?"}/cycle`
                               : unlocked
-                                ? `${tier} — Available`
+                                ? `${tier} — Available · Cost: ${bp ? Math.floor(bp.baseCost) : "?"} $LUNAR · Output: ${bp?.baseOutput ?? "?"}/cycle`
                                 : `${tier} — Requires Lv.${unlockLv}`
                           }
                         >

@@ -9,6 +9,12 @@ import {
   useUpgradeModule,
   useAssignCrew,
   useRecruitCrew,
+  useToggleModule,
+  useRepairModule,
+  useDemolishModule,
+  useDailyReward,
+  useBlueprints,
+  type Blueprint,
 } from "@/hooks/use-colony";
 import {
   useGameStore,
@@ -68,6 +74,10 @@ export default function ColonyMapPage() {
   const upgrade = useUpgradeModule();
   const assignCrewMutation = useAssignCrew();
   const recruitCrew = useRecruitCrew();
+  const toggleModule = useToggleModule();
+  const repairModule = useRepairModule();
+  const demolishModule = useDemolishModule();
+  const dailyReward = useDailyReward();
 
   const [dragSource, setDragSource] = useState<string | null>(null);
 
@@ -147,6 +157,7 @@ export default function ColonyMapPage() {
           y={y}
           balance={colony?.lunarBalance ?? 0}
           moduleCount={colony?.modules.length ?? 0}
+          playerLevel={colony?.level ?? 1}
         />,
       );
     },
@@ -166,33 +177,69 @@ export default function ColonyMapPage() {
         {
           label: module.isActive ? "Deactivate" : "Activate",
           icon: module.isActive ? "⏸️" : "▶️",
-          action: () =>
-            addToast({
-              type: "info",
-              title: `Toggle ${module.isActive ? "off" : "on"} coming soon`,
-              icon: "🔧",
-            }),
+          action: async () => {
+            try {
+              const result = await toggleModule.mutateAsync(module.id);
+              addToast({
+                type: "success",
+                title: result.isActive
+                  ? "Module activated"
+                  : "Module deactivated",
+                icon: result.isActive ? "▶️" : "⏸️",
+              });
+            } catch (err) {
+              addToast({
+                type: "error",
+                title: "Toggle failed",
+                message: err instanceof Error ? err.message : "Unknown error",
+                icon: "❌",
+              });
+            }
+          },
         },
         {
           label: "Repair",
           icon: "🔧",
-          action: () =>
-            addToast({
-              type: "info",
-              title: "Repair coming soon",
-              icon: "🔧",
-            }),
+          action: async () => {
+            try {
+              const result = await repairModule.mutateAsync(module.id);
+              addToast({
+                type: "success",
+                title: `Repaired for ${result.cost} $LUNAR`,
+                icon: "🔧",
+              });
+            } catch (err) {
+              addToast({
+                type: "error",
+                title: "Repair failed",
+                message: err instanceof Error ? err.message : "Unknown error",
+                icon: "❌",
+              });
+            }
+          },
         },
         {
           label: "Demolish",
           icon: "🗑️",
           danger: true,
-          action: () =>
-            addToast({
-              type: "warning",
-              title: "Demolish coming soon",
-              icon: "⚠️",
-            }),
+          action: async () => {
+            try {
+              const result = await demolishModule.mutateAsync(module.id);
+              selectModule(null);
+              addToast({
+                type: "warning",
+                title: `Demolished (+${result.refund} $LUNAR refund)`,
+                icon: "🗑️",
+              });
+            } catch (err) {
+              addToast({
+                type: "error",
+                title: "Demolish failed",
+                message: err instanceof Error ? err.message : "Unknown error",
+                icon: "❌",
+              });
+            }
+          },
         },
       ]);
     },
@@ -215,9 +262,35 @@ export default function ColonyMapPage() {
           <h1 className="text-xl font-bold">
             <span className="mr-2">🗺️</span>Colony Map
           </h1>
-          <span className="text-sm text-slate-500">
-            {colony?.modules.length ?? 0}/{MAX_MODULES} modules
-          </span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={async () => {
+                try {
+                  const result = await dailyReward.mutateAsync();
+                  addToast({
+                    type: "success",
+                    title: `+${result.reward} $LUNAR!`,
+                    message: `Day ${result.streak} streak · +${result.xpGained} XP`,
+                    icon: "🎁",
+                  });
+                } catch (err) {
+                  addToast({
+                    type: "info",
+                    title:
+                      err instanceof Error ? err.message : "Try again later",
+                    icon: "🎁",
+                  });
+                }
+              }}
+              disabled={dailyReward.isPending}
+              className="rounded-lg bg-amber-600/20 px-3 py-1.5 text-xs font-semibold text-amber-400 transition hover:bg-amber-600/30 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {dailyReward.isPending ? "Claiming…" : "🎁 Daily Reward"}
+            </button>
+            <span className="text-sm text-slate-500">
+              {colony?.modules.length ?? 0}/{MAX_MODULES} modules
+            </span>
+          </div>
         </div>
 
         <div
@@ -538,24 +611,27 @@ function BuildModuleDialog({
   y,
   balance,
   moduleCount,
+  playerLevel,
 }: {
   x: number;
   y: number;
   balance: number;
   moduleCount: number;
+  playerLevel: number;
 }) {
   const build = useBuildModule();
   const closeModal = useUIStore((s) => s.closeModal);
   const addToast = useUIStore((s) => s.addToast);
 
-  const buildableTypes = GAME_CONSTANTS.MODULE_TYPES;
+  const { data: bpData, isLoading: bpLoading } = useBlueprints(playerLevel);
+  const [expandedType, setExpandedType] = useState<string | null>(null);
 
-  const handleBuild = async (type: string) => {
+  const handleBuild = async (type: string, tier: string) => {
     try {
-      await build.mutateAsync(type);
+      await build.mutateAsync({ moduleType: type, tier });
       addToast({
         type: "success",
-        title: `${MODULE_LABELS[type] ?? type} built!`,
+        title: `${MODULE_LABELS[type] ?? type} (${tier}) built!`,
         icon: MODULE_ICONS[type] ?? "🏗️",
       });
       closeModal();
@@ -569,31 +645,132 @@ function BuildModuleDialog({
     }
   };
 
+  // Group blueprints by module type
+  const grouped = useMemo(() => {
+    if (!bpData?.blueprints) return {};
+    const map: Record<string, Blueprint[]> = {};
+    for (const bp of bpData.blueprints) {
+      if (!map[bp.type]) map[bp.type] = [];
+      map[bp.type]!.push(bp);
+    }
+    return map;
+  }, [bpData]);
+
+  const TIER_COLORS: Record<string, string> = {
+    COMMON: "text-slate-300 border-slate-600",
+    UNCOMMON: "text-green-400 border-green-600",
+    RARE: "text-blue-400 border-blue-500",
+    EPIC: "text-purple-400 border-purple-500",
+    LEGENDARY: "text-amber-400 border-amber-500",
+  };
+
+  // Fallback list when blueprints haven't loaded yet
+  const moduleTypes =
+    Object.keys(grouped).length > 0
+      ? Object.keys(grouped)
+      : GAME_CONSTANTS.MODULE_TYPES;
+
   return (
-    <div>
+    <div className="max-h-[70vh] overflow-y-auto">
       <h2 className="mb-1 text-lg font-bold">Build Module</h2>
       <p className="mb-4 text-sm text-slate-400">
         Position ({x}, {y}) · Balance: {Math.floor(balance)} $LUNAR ·{" "}
         {moduleCount}/{MAX_MODULES} slots
       </p>
 
-      <div className="grid grid-cols-2 gap-2">
-        {buildableTypes.map((type) => {
+      {bpLoading && (
+        <p className="mb-3 text-xs text-slate-500 animate-pulse">
+          Loading blueprints…
+        </p>
+      )}
+
+      <div className="space-y-2">
+        {moduleTypes.map((type) => {
           const icon = MODULE_ICONS[type] ?? "📦";
           const label = MODULE_LABELS[type] ?? type;
+          const tiers = grouped[type];
+          const isExpanded = expandedType === type;
+
           return (
-            <button
-              key={type}
-              onClick={() => handleBuild(type)}
-              disabled={build.isPending || moduleCount >= MAX_MODULES}
-              className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 p-3 text-left transition hover:border-cyan-500/40 hover:bg-slate-800 disabled:opacity-40"
-            >
-              <span className="text-xl">{icon}</span>
-              <div>
-                <div className="text-sm font-semibold text-white">{label}</div>
-                <div className="text-[10px] text-slate-500">COMMON</div>
-              </div>
-            </button>
+            <div key={type}>
+              {/* Module type header — click to expand tiers */}
+              <button
+                onClick={() => setExpandedType(isExpanded ? null : type)}
+                disabled={moduleCount >= MAX_MODULES}
+                className="flex w-full items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 p-3 text-left transition hover:border-cyan-500/40 hover:bg-slate-800 disabled:opacity-40"
+              >
+                <span className="text-xl">{icon}</span>
+                <div className="flex-1">
+                  <div className="text-sm font-semibold text-white">
+                    {label}
+                  </div>
+                  <div className="text-[10px] text-slate-500">
+                    {tiers
+                      ? `${tiers.filter((t) => t.unlocked).length}/${tiers.length} tiers unlocked`
+                      : "COMMON"}
+                  </div>
+                </div>
+                <span className="text-xs text-slate-500">
+                  {isExpanded ? "▲" : "▼"}
+                </span>
+              </button>
+
+              {/* Expanded tier list */}
+              {isExpanded && tiers && (
+                <div className="ml-4 mt-1 space-y-1">
+                  {tiers.map((bp) => {
+                    const tierColor =
+                      TIER_COLORS[bp.tier] ?? "text-slate-300 border-slate-600";
+                    const canAfford = balance >= bp.baseCost;
+                    const disabled =
+                      build.isPending ||
+                      !bp.unlocked ||
+                      !canAfford ||
+                      moduleCount >= MAX_MODULES;
+
+                    return (
+                      <button
+                        key={bp.id}
+                        onClick={() => handleBuild(bp.type, bp.tier)}
+                        disabled={disabled}
+                        className={`flex w-full items-center justify-between rounded border bg-slate-900/60 p-2 text-left text-xs transition hover:bg-slate-800 disabled:opacity-40 ${tierColor}`}
+                      >
+                        <div>
+                          <span className="font-semibold">{bp.tier}</span>
+                          {!bp.unlocked && (
+                            <span className="ml-1 text-[10px] text-slate-500">
+                              🔒 Lv{bp.unlockLevel}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-slate-400">
+                          <span title="Base output">
+                            ⚡ {bp.baseOutput}/cycle
+                          </span>
+                          <span title="Build cost">
+                            💰 {Math.floor(bp.baseCost)}
+                          </span>
+                          <span title="Max level">📈 Lv{bp.maxLevel}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Fallback if no blueprint data yet */}
+              {isExpanded && !tiers && (
+                <div className="ml-4 mt-1">
+                  <button
+                    onClick={() => handleBuild(type, "COMMON")}
+                    disabled={build.isPending || moduleCount >= MAX_MODULES}
+                    className="w-full rounded border border-slate-600 bg-slate-900/60 p-2 text-left text-xs text-slate-300 transition hover:bg-slate-800 disabled:opacity-40"
+                  >
+                    COMMON (default)
+                  </button>
+                </div>
+              )}
+            </div>
           );
         })}
       </div>

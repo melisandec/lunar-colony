@@ -5,6 +5,13 @@ import { motion } from "framer-motion";
 import { useColony } from "@/hooks/use-colony";
 import { useLeaderboard } from "@/hooks/use-events";
 import { useUIStore } from "@/stores/ui-store";
+import {
+  usePlayerAlliance,
+  useAllianceList,
+  useCreateAlliance,
+  useJoinAlliance,
+  useLeaveAlliance,
+} from "@/hooks/use-alliance";
 
 // ---------------------------------------------------------------------------
 // Alliance Dashboard Page
@@ -13,24 +20,21 @@ import { useUIStore } from "@/stores/ui-store";
 export default function AlliancePage() {
   const { data: colony, isLoading } = useColony();
   const { data: leaderboard } = useLeaderboard("WEEKLY");
+  const { data: alliance, isLoading: allianceLoading } = usePlayerAlliance();
+  const isLoadingAny = isLoading || allianceLoading;
+  const { data: alliances } = useAllianceList();
+  const createAlliance = useCreateAlliance();
+  const joinAlliance = useJoinAlliance();
+  const leaveAlliance = useLeaveAlliance();
   const addToast = useUIStore((s) => s.addToast);
 
   const [allianceName, setAllianceName] = useState("");
+  const [allianceDesc, setAllianceDesc] = useState("");
   const [activeTab, setActiveTab] = useState<
     "overview" | "members" | "leaderboard"
   >("overview");
 
-  // Mock alliance data derived from colony (the real alliance comes from DB)
-  const hasAlliance = false; // Placeholder — will be driven by API
-  const allianceData = {
-    name: "Moon Pioneers",
-    tag: "MNPN",
-    level: 3,
-    members: 12,
-    maxMembers: 20,
-    treasury: 45200,
-    weeklyProduction: 128400,
-  };
+  const hasAlliance = !!alliance;
 
   // Leaderboard entries
   const topPlayers = useMemo(() => {
@@ -38,7 +42,7 @@ export default function AlliancePage() {
     return leaderboard.entries.slice(0, 20);
   }, [leaderboard]);
 
-  if (isLoading) {
+  if (isLoadingAny) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="animate-pulse text-slate-500">Loading alliance…</div>
@@ -86,32 +90,62 @@ export default function AlliancePage() {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <StatCard
                   label="Alliance"
-                  value={allianceData.name}
-                  sub={`[${allianceData.tag}]`}
+                  value={alliance.name}
+                  sub={`Lv ${alliance.level}`}
                   icon="🏰"
                 />
                 <StatCard
                   label="Members"
-                  value={`${allianceData.members}/${allianceData.maxMembers}`}
+                  value={`${alliance.memberCount}/${alliance.maxMembers}`}
                   icon="👥"
                 />
                 <StatCard
                   label="Treasury"
-                  value={`${allianceData.treasury.toLocaleString()} $L`}
+                  value={`${alliance.totalLunar.toLocaleString()} $L`}
                   icon="💰"
                 />
                 <StatCard
-                  label="Weekly Output"
-                  value={`${allianceData.weeklyProduction.toLocaleString()}`}
+                  label="Level"
+                  value={String(alliance.level)}
                   icon="⚡"
                 />
               </div>
 
-              {/* Alliance activity placeholder */}
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 text-center">
-                <p className="text-sm text-slate-400">
-                  Alliance activity feed coming soon…
-                </p>
+              {/* Leave alliance button */}
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-slate-400">
+                      {alliance.description ?? "No description set."}
+                    </p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await leaveAlliance.mutateAsync();
+                        addToast({
+                          type: "info",
+                          title: "Left alliance",
+                          icon: "👋",
+                        });
+                      } catch (err) {
+                        addToast({
+                          type: "error",
+                          title: "Leave failed",
+                          message:
+                            err instanceof Error
+                              ? err.message
+                              : "Unknown error",
+                          icon: "❌",
+                        });
+                      }
+                    }}
+                    disabled={leaveAlliance.isPending}
+                    className="shrink-0 rounded-lg border border-red-600/30 bg-red-600/10 px-4 py-2 text-sm font-semibold text-red-400 transition hover:bg-red-600/20 disabled:opacity-40"
+                  >
+                    {leaveAlliance.isPending ? "Leaving…" : "Leave Alliance"}
+                  </button>
+                </div>
               </div>
             </>
           ) : (
@@ -132,41 +166,119 @@ export default function AlliancePage() {
               {/* Create alliance form */}
               <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-5">
                 <h3 className="mb-3 text-sm font-semibold text-slate-300">
-                  Create Alliance
+                  Create Alliance (1,000 $LUNAR)
                 </h3>
-                <div className="flex gap-2">
+                <div className="space-y-2">
                   <input
                     type="text"
                     placeholder="Alliance name"
                     value={allianceName}
                     onChange={(e) => setAllianceName(e.target.value)}
                     maxLength={24}
-                    className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Description (optional)"
+                    value={allianceDesc}
+                    onChange={(e) => setAllianceDesc(e.target.value)}
+                    maxLength={100}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none"
                   />
                   <button
-                    onClick={() =>
-                      addToast({
-                        type: "info",
-                        title: "Alliance creation coming soon",
-                        icon: "🏰",
-                      })
+                    onClick={async () => {
+                      try {
+                        await createAlliance.mutateAsync({
+                          name: allianceName,
+                          description: allianceDesc || undefined,
+                        });
+                        addToast({
+                          type: "success",
+                          title: `Alliance "${allianceName}" created!`,
+                          icon: "🏰",
+                        });
+                        setAllianceName("");
+                        setAllianceDesc("");
+                      } catch (err) {
+                        addToast({
+                          type: "error",
+                          title: "Create failed",
+                          message:
+                            err instanceof Error
+                              ? err.message
+                              : "Unknown error",
+                          icon: "❌",
+                        });
+                      }
+                    }}
+                    disabled={
+                      allianceName.length < 3 || createAlliance.isPending
                     }
-                    disabled={allianceName.length < 3}
-                    className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-indigo-500 disabled:opacity-40"
+                    className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-indigo-500 disabled:opacity-40"
                   >
-                    Create
+                    {createAlliance.isPending ? "Creating…" : "Create"}
                   </button>
                 </div>
               </div>
 
-              {/* Browse alliances placeholder */}
+              {/* Browse alliances list */}
               <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-5">
                 <h3 className="mb-3 text-sm font-semibold text-slate-300">
                   Browse Alliances
                 </h3>
-                <div className="py-6 text-center text-sm text-slate-500">
-                  Open alliance search is coming soon. Stay tuned!
-                </div>
+                {alliances && alliances.length > 0 ? (
+                  <div className="space-y-2">
+                    {alliances
+                      .filter((a) => a.memberCount < a.maxMembers)
+                      .map((a) => (
+                        <div
+                          key={a.id}
+                          className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-800/30 px-3 py-2"
+                        >
+                          <div>
+                            <div className="text-sm font-medium text-white">
+                              🏰 {a.name}
+                            </div>
+                            <div className="text-[10px] text-slate-500">
+                              Lv.{a.level} · {a.memberCount}/{a.maxMembers}{" "}
+                              members
+                              {a.description && ` · ${a.description}`}
+                            </div>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await joinAlliance.mutateAsync(a.id);
+                                addToast({
+                                  type: "success",
+                                  title: `Joined ${a.name}!`,
+                                  icon: "🤝",
+                                });
+                              } catch (err) {
+                                addToast({
+                                  type: "error",
+                                  title: "Join failed",
+                                  message:
+                                    err instanceof Error
+                                      ? err.message
+                                      : "Unknown error",
+                                  icon: "❌",
+                                });
+                              }
+                            }}
+                            disabled={joinAlliance.isPending}
+                            className="shrink-0 rounded-lg bg-cyan-600/20 px-3 py-1.5 text-xs font-semibold text-cyan-400 transition hover:bg-cyan-600/30 disabled:opacity-40"
+                          >
+                            {joinAlliance.isPending ? "Joining…" : "Join"}
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="py-6 text-center text-sm text-slate-500">
+                    No alliances available yet. Be the first to create one!
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -183,10 +295,39 @@ export default function AlliancePage() {
           {hasAlliance ? (
             <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
               <h3 className="mb-3 text-sm font-semibold text-slate-300">
-                Alliance Members
+                Alliance Members ({alliance.memberCount}/{alliance.maxMembers})
               </h3>
-              <div className="py-8 text-center text-sm text-slate-500">
-                Member list will appear once you join an alliance.
+              <div className="space-y-1">
+                {alliance.members.map((m) => {
+                  const roleIcon =
+                    m.role === "LEADER"
+                      ? "👑"
+                      : m.role === "OFFICER"
+                        ? "⭐"
+                        : "👤";
+                  return (
+                    <div
+                      key={m.id}
+                      className="flex items-center justify-between rounded-lg bg-slate-800/30 px-3 py-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>{roleIcon}</span>
+                        <div>
+                          <span className="text-sm font-medium text-white">
+                            {m.player.username ?? "Unknown"}
+                          </span>
+                          <span className="ml-2 text-[10px] text-slate-500">
+                            Lv.{m.player.level} · {m.role.toLowerCase()}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-xs tabular-nums text-slate-400">
+                        {Number(m.player.totalEarnings).toLocaleString()} $L
+                        earned
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : (
