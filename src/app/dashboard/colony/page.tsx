@@ -12,6 +12,9 @@ import { useUIStore } from "@/stores/ui-store";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard";
 import { ModuleCard, EmptyGridCell } from "@/components/dashboard/module-card";
 import { GAME_CONSTANTS } from "@/lib/utils";
+import { EfficiencyGauge } from "@/components/visualizations/efficiency-gauge";
+import { FillMeter } from "@/components/visualizations/fill-meter";
+import { StatusDot } from "@/components/visualizations/status-indicators";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -283,18 +286,34 @@ export default function ColonyMapPage() {
               </div>
             </div>
 
-            <div className="space-y-3">
-              <DetailRow
+            {/* Efficiency Gauge */}
+            <div className="mb-4 flex justify-center">
+              <EfficiencyGauge
+                value={selectedModule.efficiency}
+                size={96}
                 label="Efficiency"
-                value={`${selectedModule.efficiency}%`}
+                strokeWidth={7}
+              />
+            </div>
+
+            <div className="space-y-3">
+              {/* Output fill meters */}
+              <FillMeter
+                value={selectedModule.baseOutput + selectedModule.bonusOutput}
+                max={selectedModule.baseOutput * 2}
                 color={
                   selectedModule.efficiency >= 80
-                    ? "text-emerald-400"
+                    ? "#10b981"
                     : selectedModule.efficiency >= 50
-                      ? "text-amber-400"
-                      : "text-red-400"
+                      ? "#f59e0b"
+                      : "#ef4444"
                 }
+                label="Output"
+                icon="⚡"
+                labelFormat="value"
+                valueLabel={`${(selectedModule.baseOutput + selectedModule.bonusOutput).toFixed(1)}/tick`}
               />
+
               <DetailRow
                 label="Base Output"
                 value={`${selectedModule.baseOutput}/tick`}
@@ -303,13 +322,13 @@ export default function ColonyMapPage() {
                 label="Bonus"
                 value={`+${selectedModule.bonusOutput}/tick`}
               />
-              <DetailRow
-                label="Status"
-                value={selectedModule.isActive ? "Online" : "Offline"}
-                color={
-                  selectedModule.isActive ? "text-emerald-400" : "text-red-400"
-                }
-              />
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">Status</span>
+                <StatusDot
+                  status={selectedModule.isActive ? "active" : "offline"}
+                  label={selectedModule.isActive ? "Online" : "Offline"}
+                />
+              </div>
               <DetailRow
                 label="Position"
                 value={`(${selectedModule.coordinates.x}, ${selectedModule.coordinates.y})`}

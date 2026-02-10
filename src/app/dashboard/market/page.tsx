@@ -24,6 +24,13 @@ import {
 import { useColony } from "@/hooks/use-colony";
 import { useUIStore } from "@/stores/ui-store";
 import { useGameStore } from "@/stores/game-store";
+import { MarketDepthViz } from "@/components/visualizations/market-depth";
+
+import { TrendArrow } from "@/components/visualizations/status-indicators";
+import {
+  MarketTicker,
+  type MarketTickerItem,
+} from "@/components/visualizations/live-displays";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -186,6 +193,21 @@ export default function MarketPage() {
       <h1 className="text-xl font-bold">
         <span className="mr-2">📈</span>Market Terminal
       </h1>
+
+      {/* Live market ticker tape */}
+      {overview?.resources && (
+        <MarketTicker
+          items={overview.resources.map(
+            (r: MarketResource): MarketTickerItem => ({
+              symbol: r.type.replace(/_/g, " "),
+              price: r.currentPrice,
+              change: r.changePercent,
+              icon: RESOURCE_ICONS[r.type],
+            }),
+          )}
+          speed={35}
+        />
+      )}
 
       {/* Resource selector */}
       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -373,40 +395,67 @@ export default function MarketPage() {
       </div>
 
       {/* Depth chart */}
-      {depthData.length > 0 && (
+      {detail?.depth && (
         <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
           <h3 className="mb-3 text-sm font-semibold text-slate-300">
             Order Book Depth
           </h3>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={depthData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis
-                dataKey="price"
-                tick={{ fill: "#64748b", fontSize: 10 }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v: number) => v.toFixed(1)}
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* SVG depth visualization */}
+            <div className="flex justify-center">
+              <MarketDepthViz
+                bids={detail.depth.bids ?? []}
+                asks={detail.depth.asks ?? []}
+                currentPrice={detail.depth.currentPrice}
+                spread={detail.depth.spread}
+                width={320}
+                height={160}
               />
-              <YAxis
-                tick={{ fill: "#64748b", fontSize: 10 }}
-                axisLine={false}
-                tickLine={false}
-                width={40}
-              />
-              <Tooltip content={<ChartTooltip />} />
-              <Bar dataKey="bid" name="Bids" fill="#10b981" stackId="depth" />
-              <Bar dataKey="ask" name="Asks" fill="#ef4444" stackId="depth" />
-              {resourceInfo && (
-                <ReferenceLine
-                  x={resourceInfo.currentPrice}
-                  stroke="#facc15"
-                  strokeDasharray="3 3"
-                  label={{ value: "Price", fill: "#facc15", fontSize: 10 }}
-                />
-              )}
-            </BarChart>
-          </ResponsiveContainer>
+            </div>
+
+            {/* Bar chart version */}
+            {depthData.length > 0 && (
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={depthData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                  <XAxis
+                    dataKey="price"
+                    tick={{ fill: "#64748b", fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v: number) => v.toFixed(1)}
+                  />
+                  <YAxis
+                    tick={{ fill: "#64748b", fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={40}
+                  />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Bar
+                    dataKey="bid"
+                    name="Bids"
+                    fill="#10b981"
+                    stackId="depth"
+                  />
+                  <Bar
+                    dataKey="ask"
+                    name="Asks"
+                    fill="#ef4444"
+                    stackId="depth"
+                  />
+                  {resourceInfo && (
+                    <ReferenceLine
+                      x={resourceInfo.currentPrice}
+                      stroke="#facc15"
+                      strokeDasharray="3 3"
+                      label={{ value: "Price", fill: "#facc15", fontSize: 10 }}
+                    />
+                  )}
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
         </div>
       )}
 
@@ -449,8 +498,10 @@ export default function MarketPage() {
                   <td
                     className={`py-2 text-right tabular-nums ${r.changePercent >= 0 ? "text-emerald-400" : "text-red-400"}`}
                   >
-                    {r.changePercent >= 0 ? "+" : ""}
-                    {r.changePercent.toFixed(1)}%
+                    <TrendArrow
+                      direction={r.changePercent}
+                      value={Math.abs(r.changePercent)}
+                    />
                   </td>
                   <td className="hidden py-2 text-right tabular-nums text-slate-400 sm:table-cell">
                     {r.supply?.toLocaleString() ?? "—"}

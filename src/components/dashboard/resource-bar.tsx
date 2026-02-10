@@ -6,6 +6,8 @@ import { useUIStore } from "@/stores/ui-store";
 import { motion, AnimatePresence } from "framer-motion";
 import { useFeedback } from "@/hooks/use-feedback";
 import { CoinFlip } from "@/components/microinteractions/coin-flip";
+import { TickCountdown } from "@/components/visualizations/live-displays";
+import { StatusDot } from "@/components/visualizations/status-indicators";
 import { useState } from "react";
 
 function fmt(n: number): string {
@@ -122,6 +124,32 @@ export function ResourceBar() {
           ⭐
         </span>
         <span className="text-xs text-amber-400">Lv.{colony.level}</span>
+      </div>
+
+      {/* Divider */}
+      <div
+        className="hidden h-5 w-px bg-slate-800 md:block"
+        aria-hidden="true"
+      />
+
+      {/* Tick Countdown */}
+      <div className="hidden items-center gap-1.5 md:flex">
+        <TickCountdown size={28} />
+      </div>
+
+      {/* Colony Status */}
+      <div className="hidden items-center gap-1 md:flex">
+        <StatusDot
+          status={
+            colony.efficiency >= 80
+              ? "active"
+              : colony.efficiency >= 50
+                ? "warning"
+                : "critical"
+          }
+          size={6}
+        />
+        <span className="text-xs text-slate-500">{colony.efficiency}% eff</span>
       </div>
 
       {/* Spacer */}

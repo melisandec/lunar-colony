@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Offline fallback page.
  * Displayed by the service worker when the user has no connection.

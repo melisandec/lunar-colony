@@ -22,6 +22,15 @@ import {
   useProductionHistory,
   type ProductionEntry,
 } from "@/hooks/use-colony";
+import { EfficiencyGauge } from "@/components/visualizations/efficiency-gauge";
+import {
+  DonutChart,
+  type DonutSegment,
+} from "@/components/visualizations/donut-chart";
+import { Sparkline } from "@/components/visualizations/sparkline";
+import { TickCountdown } from "@/components/visualizations/live-displays";
+import { LiveCounter } from "@/components/visualizations/live-displays";
+import { FillMeter } from "@/components/visualizations/fill-meter";
 
 // ---------------------------------------------------------------------------
 // Module palette for chart colors
@@ -172,6 +181,66 @@ export default function ProductionPage() {
       <h1 className="text-xl font-bold">
         <span className="mr-2">📊</span>Production Analytics
       </h1>
+
+      {/* Live Overview Strip */}
+      <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
+        <EfficiencyGauge
+          value={stats.avgEfficiency}
+          size={72}
+          label="Colony Eff"
+          strokeWidth={5}
+        />
+
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-slate-500">Production Rate</span>
+          <LiveCounter
+            value={stats.totalRate}
+            decimals={1}
+            suffix="/tick"
+            size="lg"
+            color="#06b6d4"
+          />
+        </div>
+
+        <div className="hidden h-10 w-px bg-slate-800 sm:block" />
+
+        <TickCountdown size={48} />
+
+        <div className="hidden h-10 w-px bg-slate-800 sm:block" />
+
+        {/* Module type donut */}
+        {moduleBreakdown.length > 0 && (
+          <DonutChart
+            segments={moduleBreakdown.map(
+              (m): DonutSegment => ({
+                label: m.type.replace(/_/g, " "),
+                value: m.output,
+                color: MODULE_COLORS[m.type] ?? "#64748b",
+                icon: MODULE_ICONS[m.type],
+              }),
+            )}
+            size={72}
+            thickness={0.35}
+            centerValue={`${stats.totalModules}`}
+            centerLabel="modules"
+          />
+        )}
+
+        {/* Efficiency sparkline from history */}
+        {chartData.length >= 2 && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-slate-500">Efficiency Trend</span>
+            <Sparkline
+              data={chartData.map((d) => d.efficiency)}
+              width={100}
+              height={32}
+              color="#10b981"
+              showDot
+              dotRadius={2.5}
+            />
+          </div>
+        )}
+      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -382,15 +451,28 @@ export default function ProductionPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-sm font-semibold tabular-nums text-white">
-                      {entry.output.toFixed(1)}/t
-                    </div>
-                    <div className="text-[10px] text-slate-500">
-                      {((entry.output / (stats.totalRate || 1)) * 100).toFixed(
-                        0,
-                      )}
-                      % of total
+                  <div className="flex items-center gap-3">
+                    {/* Mini fill meter showing % of total */}
+                    <FillMeter
+                      value={entry.output}
+                      max={stats.totalRate || 1}
+                      color={MODULE_COLORS[entry.type] ?? "#64748b"}
+                      showLabel={false}
+                      height={4}
+                      animate={false}
+                      className="w-16"
+                    />
+                    <div className="text-right">
+                      <div className="text-sm font-semibold tabular-nums text-white">
+                        {entry.output.toFixed(1)}/t
+                      </div>
+                      <div className="text-[10px] text-slate-500">
+                        {(
+                          (entry.output / (stats.totalRate || 1)) *
+                          100
+                        ).toFixed(0)}
+                        % of total
+                      </div>
                     </div>
                   </div>
                 </div>
