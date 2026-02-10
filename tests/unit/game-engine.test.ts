@@ -420,14 +420,17 @@ describe("checkAchievements", () => {
 
     // Mock achievement lookups — return an achievement for each key
     prismaMock.achievement.findUnique.mockImplementation(
-      async ({ where }: { where: { key: string } }) => ({
-        id: `ach_${where.key}`,
-        key: where.key,
-        name: `Achievement: ${where.key}`,
-        threshold: 1,
-        xpReward: 50,
-        lunarReward: 100,
-      }),
+      async (...args: unknown[]) => {
+        const { where } = args[0] as { where: { key: string } };
+        return {
+          id: `ach_${where.key}`,
+          key: where.key,
+          name: `Achievement: ${where.key}`,
+          threshold: 1,
+          xpReward: 50,
+          lunarReward: 100,
+        };
+      },
     );
 
     const result = await checkAchievements("player_1");
@@ -1088,7 +1091,7 @@ describe("calculateColonyState", () => {
     };
 
     const state = calculateColonyState(
-      player as Parameters<typeof calculateColonyState>[0],
+      player as unknown as Parameters<typeof calculateColonyState>[0],
     );
 
     expect(state.playerId).toBe("player_1");
@@ -1109,7 +1112,7 @@ describe("calculateColonyState", () => {
     };
 
     const state = calculateColonyState(
-      player as Parameters<typeof calculateColonyState>[0],
+      player as unknown as Parameters<typeof calculateColonyState>[0],
     );
     expect(state.productionRate).toBe(0);
   });
