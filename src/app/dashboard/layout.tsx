@@ -14,7 +14,6 @@ import {
   KeyboardShortcutsDialog,
 } from "@/components/accessibility";
 import {
-  Breadcrumbs,
   NavHistoryButtons,
   ContextualActionBar,
   CommandPalette,
@@ -193,11 +192,10 @@ function DashboardShell({ children }: { children: ReactNode }) {
       <div className="flex flex-1 flex-col overflow-hidden">
         <ResourceBar />
 
-        {/* Navigation bar (breadcrumbs + history + contextual tabs) */}
+        {/* Navigation bar (history + contextual tabs) */}
         <div className="flex flex-col gap-1 border-b border-slate-800/40 px-4 py-2">
           <div className="flex items-center gap-2">
             <NavHistoryButtons />
-            <Breadcrumbs />
           </div>
           <ContextualActionBar />
         </div>
