@@ -13,11 +13,7 @@ import {
   AccessibilitySettings,
   KeyboardShortcutsDialog,
 } from "@/components/accessibility";
-import {
-  NavHistoryButtons,
-  ContextualActionBar,
-  CommandPalette,
-} from "@/components/navigation";
+import { ContextualActionBar, CommandPalette } from "@/components/navigation";
 import { useAccessibilityStore } from "@/stores/accessibility-store";
 import { useGameStore } from "@/stores/game-store";
 import { useNavHistory } from "@/stores/navigation-store";
@@ -194,9 +190,6 @@ function DashboardShell({ children }: { children: ReactNode }) {
 
         {/* Navigation bar (history + contextual tabs) */}
         <div className="flex flex-col gap-1 border-b border-slate-800/40 px-4 py-2">
-          <div className="flex items-center gap-2">
-            <NavHistoryButtons />
-          </div>
           <ContextualActionBar />
         </div>
 

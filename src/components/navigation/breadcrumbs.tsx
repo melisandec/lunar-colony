@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { motion } from "framer-motion";
-import { buildBreadcrumbs, useNavHistory } from "@/stores/navigation-store";
+import { usePathname } from "next/navigation";
+import { buildBreadcrumbs } from "@/stores/navigation-store";
 import { useFeedback } from "@/hooks/use-feedback";
 
 /**
@@ -60,77 +59,6 @@ export function Breadcrumbs() {
           );
         })}
       </ol>
-    </nav>
-  );
-}
-
-/**
- * NavHistoryButtons — Back / Forward buttons using the navigation history.
- */
-export function NavHistoryButtons() {
-  const canBack = useNavHistory((s) => s.canGoBack());
-  const canForward = useNavHistory((s) => s.canGoForward());
-  const goBack = useNavHistory((s) => s.goBack);
-  const goForward = useNavHistory((s) => s.goForward);
-  const router = useRouter();
-  const fb = useFeedback();
-
-  const handleBack = () => {
-    const path = goBack();
-    if (path) {
-      fb.click();
-      router.push(path);
-    }
-  };
-
-  const handleForward = () => {
-    const path = goForward();
-    if (path) {
-      fb.click();
-      router.push(path);
-    }
-  };
-
-  return (
-    <nav aria-label="History navigation" className="flex items-center gap-0.5">
-      <motion.button
-        onClick={handleBack}
-        disabled={!canBack}
-        whileTap={canBack ? { scale: 0.9 } : undefined}
-        aria-label="Go back"
-        className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-800/60 hover:text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-cyan-500"
-      >
-        <svg
-          className="h-3.5 w-3.5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2.5}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M15 19l-7-7 7-7"
-          />
-        </svg>
-      </motion.button>
-      <motion.button
-        onClick={handleForward}
-        disabled={!canForward}
-        whileTap={canForward ? { scale: 0.9 } : undefined}
-        aria-label="Go forward"
-        className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-800/60 hover:text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-cyan-500"
-      >
-        <svg
-          className="h-3.5 w-3.5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2.5}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-        </svg>
-      </motion.button>
     </nav>
   );
 }
