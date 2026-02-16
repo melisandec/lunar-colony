@@ -320,7 +320,7 @@ export default function ColonyMapPage() {
 
         <div
           data-tutorial="grid"
-          className="relative grid grid-cols-4 gap-1.5 rounded-xl border border-slate-800/40 bg-slate-900/20 p-3 sm:gap-2 sm:rounded-2xl sm:p-4 md:grid-cols-5"
+          className="relative grid grid-cols-4 gap-1.5 overflow-hidden rounded-xl p-3 sm:gap-2 sm:rounded-2xl sm:p-4 md:grid-cols-5 lunar-surface"
         >
           {grid.map((row, y) =>
             row.map((cell, x) =>

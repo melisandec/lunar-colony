@@ -169,7 +169,7 @@ export function ModuleCard({
   }
 
   return (
-    <div draggable={draggable} onDragStart={onDragStart}>
+    <div draggable={draggable} onDragStart={onDragStart} className="lunar-shadow">
       <motion.div
         layout={shouldAnimate}
         layoutId={shouldAnimate ? `module-${module.id}` : undefined}
@@ -197,7 +197,7 @@ export function ModuleCard({
         whileHover={shouldAnimate ? { scale: 1.04 } : undefined}
         whileTap={shouldAnimate ? { scale: 0.96 } : undefined}
         transition={spring}
-        className={`relative flex aspect-square cursor-pointer flex-col items-center justify-center rounded-xl border bg-gradient-to-b transition-all
+        className={`relative flex aspect-square cursor-pointer flex-col items-center justify-center rounded-xl border bg-gradient-to-b transition-all lunar-module
           focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950
           ${tierBorder} ${tierGlow} ${typeBg}
           ${selected ? "border-cyan-400/60 bg-cyan-500/10 ring-1 ring-cyan-400/30" : "hover:border-slate-600 hover:bg-slate-800/40"}
@@ -299,7 +299,7 @@ export function EmptyGridCell({
       onKeyDown={handleKeyDown}
       className={`group flex aspect-square flex-col items-center justify-center gap-0 rounded-xl border border-dashed transition-all
         focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950
-        ${highlight ? "border-cyan-500/40 bg-cyan-500/5" : "border-slate-800/50 hover:border-slate-600 hover:bg-slate-800/20"}
+        ${highlight ? "border-cyan-500/50 bg-cyan-500/10" : "lunar-patch border-slate-600/40 hover:border-slate-500/50"}
         cursor-pointer`}
     >
       <span
