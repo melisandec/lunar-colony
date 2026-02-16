@@ -100,7 +100,7 @@ function ContextualNavBarInner({
     <nav
       ref={navRef}
       aria-label="Section navigation"
-      className="relative flex items-center gap-1 overflow-x-auto px-1 py-2 scrollbar-none"
+      className="relative flex items-center gap-1 overflow-x-auto px-1 py-1.5 scrollbar-none sm:py-2"
     >
       {routeChildren.map((child) => {
         const isActive =
@@ -115,9 +115,9 @@ function ContextualNavBarInner({
               fb.click();
               haptic("tap");
             }}
-            className={`relative flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-4 py-2.5 text-xs font-medium transition-colors
+            className={`relative flex min-h-[36px] min-w-[36px] shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-lg px-3 py-2 text-[11px] font-medium transition-colors sm:min-h-[44px] sm:min-w-[44px] sm:gap-1.5 sm:px-4 sm:py-2.5 sm:text-xs
               ${isActive
-                ? "bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-500/40"
+                ? "bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-500/30"
                 : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
               }`}
             aria-current={isActive ? "page" : undefined}

@@ -188,14 +188,14 @@ function DashboardShell({ children }: { children: ReactNode }) {
         <ResourceBar />
 
         {/* Navigation bar (history + contextual tabs) */}
-        <div className="flex flex-col gap-1 border-b border-slate-800/40 px-4 py-2">
+        <div className="flex flex-col gap-0 border-b border-slate-800/30 px-2 py-1 sm:gap-1 sm:px-4 sm:py-2">
           <ContextualActionBar />
         </div>
 
         <main
           id="main-content"
           aria-label="Dashboard content"
-          className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 lg:pb-4"
+          className="flex-1 overflow-y-auto overflow-x-hidden p-3 pb-20 sm:p-4 sm:pb-24 lg:pb-4"
         >
           {children}
         </main>

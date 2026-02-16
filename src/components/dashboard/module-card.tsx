@@ -197,64 +197,64 @@ export function ModuleCard({
         whileHover={shouldAnimate ? { scale: 1.04 } : undefined}
         whileTap={shouldAnimate ? { scale: 0.96 } : undefined}
         transition={spring}
-        className={`relative flex aspect-square cursor-pointer flex-col items-center justify-center rounded-2xl border bg-gradient-to-b transition-all
+        className={`relative flex aspect-square cursor-pointer flex-col items-center justify-center rounded-xl border bg-gradient-to-b transition-all
           focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950
           ${tierBorder} ${tierGlow} ${typeBg}
           ${selected ? "border-cyan-400/60 bg-cyan-500/10 ring-1 ring-cyan-400/30" : "hover:border-slate-600 hover:bg-slate-800/40"}
           ${!module.isActive ? "opacity-40 grayscale-[40%]" : ""}
           ${draggable ? "cursor-grab active:cursor-grabbing" : ""}`}
       >
-        {/* Icon — pixel art when available, emoji fallback */}
+        {/* Icon — smaller on mobile for Apple-style density */}
         {pixelArt ? (
           <Image
             src={pixelArt}
             alt={label}
-            width={40}
-            height={40}
-            className="sm:h-8 sm:w-8"
+            width={isMobile ? 28 : 36}
+            height={isMobile ? 28 : 36}
+            className="shrink-0"
             draggable={false}
             aria-hidden="true"
           />
         ) : (
-          <span className="text-3xl sm:text-2xl" aria-hidden="true">
+          <span className={`shrink-0 ${isMobile ? "text-2xl" : "text-3xl"}`} aria-hidden="true">
             {icon}
           </span>
         )}
 
-        {/* Name */}
-        <span className="mt-1.5 text-center text-[11px] font-medium leading-tight text-slate-200 sm:text-[10px]">
-          {label}
+        {/* Name — single line, truncated */}
+        <span className="mt-1 max-w-full truncate px-1 text-center text-[10px] font-medium leading-tight text-slate-200 sm:text-[11px]">
+          {isMobile ? label.split(" ")[0] : label}
         </span>
 
-        {/* Output per tick */}
-        <span className="mt-0.5 text-[9px] font-medium tabular-nums text-emerald-400/90">
-          +{effectiveOutput.toFixed(1)}/tick
-        </span>
-
-        {/* Tier badge */}
-        <span
-          className={`mt-0.5 text-[9px] font-bold uppercase tracking-widest ${tierText}`}
-        >
-          {module.tier}
-        </span>
+        {/* Output + tier — hidden on mobile, shown on desktop */}
+        {!isMobile && (
+          <>
+            <span className="mt-0.5 text-[9px] font-medium tabular-nums text-emerald-400/90">
+              +{effectiveOutput.toFixed(1)}/tick
+            </span>
+            <span className={`mt-0.5 text-[9px] font-bold uppercase tracking-wider ${tierText}`}>
+              {module.tier}
+            </span>
+          </>
+        )}
 
         {/* Inactive label */}
         {!module.isActive && (
-          <span className="absolute bottom-1 text-[8px] font-bold uppercase text-slate-500">
-            Inactive
+          <span className="absolute bottom-0.5 text-[7px] font-semibold uppercase text-slate-500 sm:text-[8px]">
+            Off
           </span>
         )}
 
-        {/* Efficiency indicator — ring style */}
+        {/* Efficiency indicator — smaller, integrated */}
         <div
-          className={`absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-slate-950 ${effColor(module.efficiency)}`}
+          className={`absolute right-0.5 top-0.5 h-2 w-2 rounded-full border border-slate-950 ${effColor(module.efficiency)}`}
           role="img"
-          aria-label={`${module.efficiency}% efficiency (${effLabel(module.efficiency)})`}
+          aria-label={`${module.efficiency}% (${effLabel(module.efficiency)})`}
         />
 
-        {/* Level badge — pill style */}
+        {/* Level badge — minimal on mobile */}
         <div
-          className="absolute -left-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-slate-800 px-1 text-[9px] font-bold tabular-nums text-slate-300 ring-1 ring-slate-700/60"
+          className={`absolute left-0.5 top-0.5 flex items-center justify-center rounded-md bg-slate-800/90 px-1 py-0.5 text-[8px] font-semibold tabular-nums text-slate-300 sm:h-[16px] sm:min-w-[16px] sm:rounded-full sm:px-1 sm:text-[9px]`}
           aria-label={`Level ${module.level}`}
         >
           {module.level}
@@ -297,18 +297,18 @@ export function EmptyGridCell({
       onDragOver={onDragOver}
       onClick={onClick}
       onKeyDown={handleKeyDown}
-      className={`group flex aspect-square flex-col items-center justify-center gap-0.5 rounded-2xl border border-dashed transition-all
+      className={`group flex aspect-square flex-col items-center justify-center gap-0 rounded-xl border border-dashed transition-all
         focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950
-        ${highlight ? "border-cyan-500/40 bg-cyan-500/5" : "border-slate-800/60 hover:border-slate-600 hover:bg-slate-900/40"}
+        ${highlight ? "border-cyan-500/40 bg-cyan-500/5" : "border-slate-800/50 hover:border-slate-600 hover:bg-slate-800/20"}
         cursor-pointer`}
     >
       <span
-        className={`text-lg transition-all ${highlight ? "text-cyan-500/60 scale-110" : "text-slate-700 group-hover:text-slate-500 group-hover:scale-110"}`}
+        className={`text-base transition-all ${highlight ? "text-cyan-500/70 scale-110" : "text-slate-600 group-hover:text-slate-500 group-hover:scale-110"}`}
         aria-hidden="true"
       >
         +
       </span>
-      <span className="text-[9px] font-medium text-slate-600 group-hover:text-slate-500">
+      <span className="text-[8px] font-medium text-slate-600 group-hover:text-slate-500 sm:text-[9px]">
         Build
       </span>
     </div>

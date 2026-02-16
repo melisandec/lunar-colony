@@ -65,16 +65,16 @@ export function ResourceBar() {
       data-tutorial="resource-bar"
       role="region"
       aria-label={`Colony resources: ${fmt(colony.lunarBalance)} LUNAR balance, ${fmt(colony.productionRate)} per tick production, Level ${colony.level}`}
-      className="flex min-h-[44px] flex-col gap-1 border-b border-slate-800/40 bg-slate-950/60 px-3 backdrop-blur-md sm:flex-row sm:items-center sm:gap-4 sm:px-5"
-      style={{ paddingTop: "max(env(safe-area-inset-top, 0px), 8px)" }}
+      className="flex min-h-[40px] flex-col gap-1 border-b border-slate-800/30 bg-slate-950/80 px-3 backdrop-blur-md sm:min-h-[44px] sm:flex-row sm:items-center sm:gap-4 sm:px-5"
+      style={{ paddingTop: "max(env(safe-area-inset-top, 0px), 6px)" }}
     >
-      <div className="flex h-12 min-h-[44px] items-center gap-2 sm:gap-4">
-        {/* Balance — always visible, min 44px touch target */}
+      <div className="flex h-10 min-h-[40px] items-center gap-1.5 sm:h-12 sm:min-h-[44px] sm:gap-4">
+        {/* Balance — always visible */}
         <div
-          className="flex min-w-[44px] min-h-[44px] items-center justify-center gap-1.5 rounded-lg hover:bg-slate-800/30 sm:min-w-0 sm:min-h-0 sm:justify-start"
+          className="flex min-w-[36px] min-h-[36px] items-center justify-center gap-1 rounded-lg hover:bg-slate-800/30 sm:min-w-[44px] sm:min-h-[44px] sm:gap-1.5 sm:justify-start"
           aria-label={`Balance: ${fmt(colony.lunarBalance)} LUNAR`}
         >
-          <span className="text-sm" aria-hidden="true">
+          <span className="text-xs sm:text-sm" aria-hidden="true">
             💰
           </span>
           <AnimatePresence mode="popLayout">
@@ -83,7 +83,7 @@ export function ResourceBar() {
               initial={{ y: -8, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 8, opacity: 0 }}
-              className="text-sm font-bold text-cyan-400 tabular-nums"
+              className="text-xs font-semibold text-cyan-400 tabular-nums sm:text-sm sm:font-bold"
             >
               {fmt(colony.lunarBalance)}
             </motion.span>
@@ -111,7 +111,7 @@ export function ResourceBar() {
           <button
             type="button"
             onClick={() => setExpanded((e) => !e)}
-            className="flex min-w-[44px] min-h-[44px] items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-800/30 hover:text-slate-300 sm:hidden"
+            className="flex min-w-[36px] min-h-[36px] items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-800/30 hover:text-slate-300 sm:hidden"
             aria-expanded={expanded ? "true" : "false"}
             aria-label={expanded ? "Hide details" : "Show production and stats"}
           >
@@ -170,9 +170,9 @@ export function ResourceBar() {
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Pending earnings + collect — with "Pending" label and glow */}
+        {/* Pending earnings + collect — compact on mobile */}
         {hasPending && (
-          <div className="relative flex min-w-[44px] min-h-[44px] items-center">
+          <div className="relative flex min-w-[36px] min-h-[36px] items-center sm:min-w-[44px] sm:min-h-[44px]">
             <CoinFlip trigger={coinTrigger} amount={lastCollected} />
             <motion.button
               onClick={handleCollect}
@@ -181,26 +181,26 @@ export function ResourceBar() {
               whileTap={{ scale: 0.94 }}
               transition={{ type: "spring", stiffness: 500, damping: 30 }}
               aria-label={`Collect ${fmt(colony.pendingEarnings)} pending LUNAR earnings`}
-              className="flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-0.5 rounded-lg px-3 py-2 text-xs font-semibold text-emerald-400 transition-colors hover:bg-emerald-500/20 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-cyan-500
-                border border-emerald-500/30 bg-emerald-500/15 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
+              className="flex min-h-[36px] min-w-[36px] flex-col items-center justify-center gap-0 rounded-lg px-2 py-1.5 text-[10px] font-semibold text-emerald-400 transition-colors hover:bg-emerald-500/20 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-cyan-500
+                border border-emerald-500/25 bg-emerald-500/10 shadow-[0_0_8px_rgba(16,185,129,0.12)] sm:min-h-[44px] sm:min-w-[44px] sm:gap-0.5 sm:px-3 sm:py-2 sm:text-xs"
             >
               {collect.isPending ? (
-                <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <svg className="h-3 w-3 animate-spin sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v3a5 5 0 00-5 5H4z" />
                 </svg>
               ) : (
-                <span className="animate-pulse" aria-hidden="true">⏳</span>
+                <span className="animate-pulse text-xs sm:text-sm" aria-hidden="true">⏳</span>
               )}
               <span>+{fmt(colony.pendingEarnings)}</span>
-              <span className="text-[9px] font-medium text-emerald-500/80">Collect</span>
+              <span className="hidden text-[8px] font-medium text-emerald-500/80 sm:block sm:text-[9px]">Collect</span>
             </motion.button>
           </div>
         )}
 
         {/* Player */}
         <div
-          className="flex min-w-[44px] min-h-[44px] items-center justify-center gap-1.5 rounded-lg text-xs text-slate-500 transition hover:bg-slate-800/30 sm:min-w-0 sm:min-h-0"
+          className="flex min-w-[32px] min-h-[32px] items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-800/30 sm:min-w-[44px] sm:min-h-[44px] sm:gap-1.5"
           aria-label={`Player: ${colony.playerName}`}
         >
           <span aria-hidden="true">👨‍🚀</span>

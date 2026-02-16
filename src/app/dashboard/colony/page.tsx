@@ -26,7 +26,7 @@ import {
 import { useUIStore } from "@/stores/ui-store";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard";
 import { ModuleCard, EmptyGridCell } from "@/components/dashboard/module-card";
-import { IsometricColony, IsometricColonyCompact } from "@/components/illustrations";
+import { IsometricColony } from "@/components/illustrations";
 import { GAME_CONSTANTS } from "@/lib/utils";
 import { EfficiencyGauge } from "@/components/visualizations/efficiency-gauge";
 import { FillMeter } from "@/components/visualizations/fill-meter";
@@ -270,16 +270,11 @@ export default function ColonyMapPage() {
     <div className="relative flex min-h-full flex-col gap-4 lg:flex-row">
       {/* Grid */}
       <div className="flex-1">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:block shrink-0">
-              <IsometricColonyCompact variant="compact" animated={false} className="h-14 w-20" />
-            </div>
-            <h1 className="text-xl font-bold">
-              Your Colony
-            </h1>
-          </div>
-          <div className="flex items-center gap-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 sm:mb-4">
+          <h1 className="text-lg font-semibold text-white sm:text-xl sm:font-bold">
+            Your Colony
+          </h1>
+          <div className="flex items-center gap-2">
             <button
               onClick={async () => {
                 try {
@@ -300,35 +295,32 @@ export default function ColonyMapPage() {
                 }
               }}
               disabled={dailyReward.isPending}
-              className="min-h-[44px] rounded-xl bg-amber-600/25 px-4 py-2.5 text-sm font-semibold text-amber-400 shadow-lg shadow-amber-900/20 transition hover:bg-amber-600/35 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-amber-400"
+              className="min-h-[36px] rounded-lg bg-amber-600/20 px-3 py-2 text-xs font-semibold text-amber-400 transition hover:bg-amber-600/30 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-amber-400 sm:min-h-[44px] sm:rounded-xl sm:px-4 sm:py-2.5 sm:text-sm"
             >
-              {dailyReward.isPending ? "Claiming…" : "🎁 Daily Reward"}
+              {dailyReward.isPending ? "…" : "🎁 Daily"}
             </button>
-            <span className="text-sm text-slate-500">
+            <span className="text-[11px] text-slate-500 sm:text-sm">
               {colony?.modules.length ?? 0}/{MAX_MODULES} modules
             </span>
           </div>
         </div>
 
-        {/* Empty state CTA */}
+        {/* Empty state CTA — compact on mobile */}
         {hasNoModules && (
-          <div className="mb-6 flex flex-col items-center rounded-2xl border-2 border-dashed border-cyan-500/30 bg-cyan-500/5 p-8 text-center">
-            <IsometricColony variant="header" animated className="mb-4 max-w-[240px]" />
-            <p className="mb-2 text-lg font-medium text-slate-200">
-              Build your first module to start earning $LUNAR!
+          <div className="mb-4 flex flex-col items-center rounded-xl border-2 border-dashed border-cyan-500/25 bg-cyan-500/5 p-4 text-center sm:mb-6 sm:rounded-2xl sm:p-8">
+            <IsometricColony variant="header" animated className="mb-3 max-w-[200px] sm:mb-4 sm:max-w-[240px]" />
+            <p className="mb-1 text-sm font-medium text-slate-200 sm:mb-2 sm:text-lg">
+              Build your first module to earn $LUNAR
             </p>
-            <p className="mb-0 text-sm text-slate-500">
-              Tap any empty slot below to open the build menu.
+            <p className="text-[11px] text-slate-500 sm:text-sm">
+              Tap any empty slot below.
             </p>
           </div>
         )}
 
         <div
           data-tutorial="grid"
-          className="relative grid grid-cols-4 gap-2 rounded-2xl border border-slate-800/60 bg-slate-900/30 p-4 sm:grid-cols-4 md:grid-cols-5"
-          style={{
-            boxShadow: "inset 0 2px 12px rgba(0,0,0,0.2)",
-          }}
+          className="relative grid grid-cols-4 gap-1.5 rounded-xl border border-slate-800/40 bg-slate-900/20 p-3 sm:gap-2 sm:rounded-2xl sm:p-4 md:grid-cols-5"
         >
           {grid.map((row, y) =>
             row.map((cell, x) =>
@@ -360,8 +352,8 @@ export default function ColonyMapPage() {
           )}
         </div>
 
-        {/* Legend */}
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
+        {/* Legend — compact on mobile */}
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500 sm:mt-4 sm:gap-x-4 sm:text-[11px]">
           <span className="flex items-center gap-1">
             <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />
             ≥80%
@@ -379,10 +371,10 @@ export default function ColonyMapPage() {
           </span>
         </div>
 
-        {/* Crew Roster */}
-        <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-white">
+        {/* Crew Roster — compact on mobile */}
+        <div className="mt-4 rounded-xl border border-slate-800/60 bg-slate-900/30 p-3 sm:mt-6 sm:rounded-2xl sm:bg-slate-900/50 sm:p-4">
+          <div className="mb-2 flex items-center justify-between sm:mb-3">
+            <h2 className="text-xs font-semibold text-white sm:text-sm sm:font-bold">
               👨‍🚀 Crew Roster
               <span className="ml-2 text-xs font-normal text-slate-500">
                 {colony?.crew.length ?? 0}/5
@@ -413,54 +405,46 @@ export default function ColonyMapPage() {
               disabled={
                 recruitCrew.isPending || (colony?.crew.length ?? 0) >= 5
               }
-              className="rounded-lg bg-indigo-600/20 px-3 py-1.5 text-xs font-semibold text-indigo-400 transition hover:bg-indigo-600/30 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="rounded-lg bg-indigo-600/20 px-2 py-1 text-[10px] font-semibold text-indigo-400 transition hover:bg-indigo-600/30 disabled:opacity-40 disabled:cursor-not-allowed sm:px-3 sm:py-1.5 sm:text-xs"
             >
               {recruitCrew.isPending
-                ? "Recruiting…"
+                ? "…"
                 : (colony?.crew.length ?? 0) >= 5
-                  ? "Crew Full"
-                  : "💰 Recruit (200 $L)"}
+                  ? "Full"
+                  : "💰 Recruit"}
             </button>
           </div>
 
           {(colony?.crew.length ?? 0) === 0 ? (
-            <p className="text-sm text-slate-600">
-              No crew yet. Recruit your first member to boost module output!
+            <p className="text-[11px] text-slate-600 sm:text-sm">
+              No crew yet. Recruit to boost output.
             </p>
           ) : (
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-1.5 sm:grid-cols-2 sm:gap-2">
               {colony?.crew.map((c) => (
                 <div
                   key={c.id}
-                  className="flex items-center gap-2.5 rounded-lg border border-slate-800 bg-slate-800/30 px-3 py-2"
+                  className="flex items-center gap-2 rounded-lg border border-slate-800/80 bg-slate-800/20 px-2 py-1.5 sm:gap-2.5 sm:bg-slate-800/30 sm:px-3 sm:py-2"
                 >
-                  <span className="text-lg">👨‍🚀</span>
+                  <span className="text-base sm:text-lg">👨‍🚀</span>
                   <div className="flex-1 min-w-0">
-                    <div className="truncate text-sm font-medium text-white">
+                    <div className="truncate text-xs font-medium text-white sm:text-sm">
                       {c.name}
                     </div>
-                    <div className="text-[10px] text-slate-500">
+                    <div className="text-[9px] text-slate-500 sm:text-[10px]">
                       {c.role} · Lv.{c.level}
                       {c.specialty &&
                         ` · ${c.specialty.replace(/_/g, " ").toLowerCase()}`}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-[10px] text-emerald-400">
-                      +{c.outputBonus}% out
-                    </div>
-                    <div className="text-[10px] text-cyan-400">
-                      +{c.efficiencyBonus}% eff
-                    </div>
+                    <div className="text-[9px] text-emerald-400 sm:text-[10px]">+{c.outputBonus}%</div>
+                    <div className="text-[9px] text-cyan-400 sm:text-[10px]">+{c.efficiencyBonus}%</div>
                   </div>
                   {c.assignedModuleId ? (
-                    <span className="text-[9px] font-medium text-amber-400/70">
-                      Assigned
-                    </span>
+                    <span className="text-[8px] font-medium text-amber-400/70 sm:text-[9px]">✓</span>
                   ) : (
-                    <span className="text-[9px] font-medium text-slate-600">
-                      Idle
-                    </span>
+                    <span className="text-[8px] font-medium text-slate-600 sm:text-[9px]">—</span>
                   )}
                 </div>
               ))}
@@ -477,7 +461,7 @@ export default function ColonyMapPage() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
-            className="w-full shrink-0 rounded-2xl border border-slate-800 bg-slate-900/50 p-5 lg:w-80"
+            className="w-full shrink-0 rounded-xl border border-slate-800/80 bg-slate-900/40 p-3 sm:rounded-2xl sm:bg-slate-900/50 sm:p-5 lg:w-80"
           >
             <div className="mb-4 flex items-center gap-3">
               <span className="text-3xl">
