@@ -2,6 +2,8 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useIsMobile } from "@/hooks/use-device";
+import { ColonySkeleton } from "@/components/dashboard/colony-skeleton";
 import {
   useColony,
   useRepositionModule,
@@ -80,6 +82,7 @@ export default function ColonyMapPage() {
   const dailyReward = useDailyReward();
 
   const [dragSource, setDragSource] = useState<string | null>(null);
+  const isMobile = useIsMobile();
 
   // Build the grid: 5x4 = 20 cells
   const grid = useMemo(() => {
@@ -164,110 +167,111 @@ export default function ColonyMapPage() {
     [openModal, colony],
   );
 
-  // Context menu
+  // Context menu items for a module
+  const getModuleContextItems = useCallback(
+    (module: DashboardModule) => [
+      {
+        label: "View Details",
+        icon: "🔍",
+        action: () => selectModule(module.id),
+      },
+      {
+        label: module.isActive ? "Deactivate" : "Activate",
+        icon: module.isActive ? "⏸️" : "▶️",
+        action: async () => {
+          try {
+            const result = await toggleModule.mutateAsync(module.id);
+            addToast({
+              type: "success",
+              title: result.isActive ? "Module activated" : "Module deactivated",
+              icon: result.isActive ? "▶️" : "⏸️",
+            });
+          } catch (err) {
+            addToast({
+              type: "error",
+              title: "Toggle failed",
+              message: err instanceof Error ? err.message : "Unknown error",
+              icon: "❌",
+            });
+          }
+        },
+      },
+      {
+        label: "Repair",
+        icon: "🔧",
+        action: async () => {
+          try {
+            const result = await repairModule.mutateAsync(module.id);
+            addToast({
+              type: "success",
+              title: `Repaired for ${result.cost} $LUNAR`,
+              icon: "🔧",
+            });
+          } catch (err) {
+            addToast({
+              type: "error",
+              title: "Repair failed",
+              message: err instanceof Error ? err.message : "Unknown error",
+              icon: "❌",
+            });
+          }
+        },
+      },
+      {
+        label: "Demolish",
+        icon: "🗑️",
+        danger: true,
+        action: async () => {
+          try {
+            const result = await demolishModule.mutateAsync(module.id);
+            selectModule(null);
+            addToast({
+              type: "warning",
+              title: `Demolished (+${result.refund} $LUNAR refund)`,
+              icon: "🗑️",
+            });
+          } catch (err) {
+            addToast({
+              type: "error",
+              title: "Demolish failed",
+              message: err instanceof Error ? err.message : "Unknown error",
+              icon: "❌",
+            });
+          }
+        },
+      },
+    ],
+    [selectModule, addToast, toggleModule, repairModule, demolishModule],
+  );
+
   const handleModuleContext = useCallback(
     (module: DashboardModule) => (e: React.MouseEvent) => {
       e.preventDefault();
-      openContextMenu(e.clientX, e.clientY, [
-        {
-          label: "View Details",
-          icon: "🔍",
-          action: () => selectModule(module.id),
-        },
-        {
-          label: module.isActive ? "Deactivate" : "Activate",
-          icon: module.isActive ? "⏸️" : "▶️",
-          action: async () => {
-            try {
-              const result = await toggleModule.mutateAsync(module.id);
-              addToast({
-                type: "success",
-                title: result.isActive
-                  ? "Module activated"
-                  : "Module deactivated",
-                icon: result.isActive ? "▶️" : "⏸️",
-              });
-            } catch (err) {
-              addToast({
-                type: "error",
-                title: "Toggle failed",
-                message: err instanceof Error ? err.message : "Unknown error",
-                icon: "❌",
-              });
-            }
-          },
-        },
-        {
-          label: "Repair",
-          icon: "🔧",
-          action: async () => {
-            try {
-              const result = await repairModule.mutateAsync(module.id);
-              addToast({
-                type: "success",
-                title: `Repaired for ${result.cost} $LUNAR`,
-                icon: "🔧",
-              });
-            } catch (err) {
-              addToast({
-                type: "error",
-                title: "Repair failed",
-                message: err instanceof Error ? err.message : "Unknown error",
-                icon: "❌",
-              });
-            }
-          },
-        },
-        {
-          label: "Demolish",
-          icon: "🗑️",
-          danger: true,
-          action: async () => {
-            try {
-              const result = await demolishModule.mutateAsync(module.id);
-              selectModule(null);
-              addToast({
-                type: "warning",
-                title: `Demolished (+${result.refund} $LUNAR refund)`,
-                icon: "🗑️",
-              });
-            } catch (err) {
-              addToast({
-                type: "error",
-                title: "Demolish failed",
-                message: err instanceof Error ? err.message : "Unknown error",
-                icon: "❌",
-              });
-            }
-          },
-        },
-      ]);
+      openContextMenu(e.clientX, e.clientY, getModuleContextItems(module));
     },
-    [
-      openContextMenu,
-      selectModule,
-      addToast,
-      toggleModule,
-      repairModule,
-      demolishModule,
-    ],
+    [openContextMenu, getModuleContextItems],
+  );
+
+  const handleModuleLongPress = useCallback(
+    (module: DashboardModule, x: number, y: number) => {
+      openContextMenu(x, y, getModuleContextItems(module));
+    },
+    [openContextMenu, getModuleContextItems],
   );
 
   if (isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="animate-pulse text-slate-500">Loading colony map…</div>
-      </div>
-    );
+    return <ColonySkeleton />;
   }
 
+  const hasNoModules = (colony?.modules.length ?? 0) === 0;
+
   return (
-    <div className="flex min-h-full flex-col gap-4 lg:flex-row">
+    <div className="relative flex min-h-full flex-col gap-4 lg:flex-row">
       {/* Grid */}
       <div className="flex-1">
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-xl font-bold">
-            <span className="mr-2">🗺️</span>Colony Map
+            <span className="mr-2">🗺️</span>Your Colony
           </h1>
           <div className="flex items-center gap-3">
             <button
@@ -290,7 +294,7 @@ export default function ColonyMapPage() {
                 }
               }}
               disabled={dailyReward.isPending}
-              className="rounded-lg bg-amber-600/20 px-3 py-1.5 text-xs font-semibold text-amber-400 transition hover:bg-amber-600/30 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="min-h-[44px] rounded-xl bg-amber-600/25 px-4 py-2.5 text-sm font-semibold text-amber-400 shadow-lg shadow-amber-900/20 transition hover:bg-amber-600/35 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-amber-400"
             >
               {dailyReward.isPending ? "Claiming…" : "🎁 Daily Reward"}
             </button>
@@ -300,9 +304,24 @@ export default function ColonyMapPage() {
           </div>
         </div>
 
+        {/* Empty state CTA */}
+        {hasNoModules && (
+          <div className="mb-6 rounded-2xl border-2 border-dashed border-cyan-500/30 bg-cyan-500/5 p-8 text-center">
+            <p className="mb-4 text-lg font-medium text-slate-200">
+              Build your first module to start earning $LUNAR!
+            </p>
+            <p className="mb-6 text-sm text-slate-500">
+              Tap any empty slot below to open the build menu.
+            </p>
+            <span className="text-4xl" aria-hidden="true">
+              🏗️
+            </span>
+          </div>
+        )}
+
         <div
           data-tutorial="grid"
-          className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5"
+          className="grid grid-cols-4 gap-2 sm:grid-cols-4 md:grid-cols-5"
         >
           {grid.map((row, y) =>
             row.map((cell, x) =>
@@ -313,7 +332,12 @@ export default function ColonyMapPage() {
                   selected={cell.id === selectedId}
                   onClick={() => selectModule(cell.id)}
                   onContextMenu={handleModuleContext(cell)}
-                  draggable
+                  onLongPress={
+                    isMobile
+                      ? (x, y) => handleModuleLongPress(cell, x, y)
+                      : undefined
+                  }
+                  draggable={!isMobile}
                   onDragStart={handleDragStart(cell.id)}
                 />
               ) : (
@@ -343,8 +367,8 @@ export default function ColonyMapPage() {
             <span className="inline-block h-2 w-2 rounded-full bg-red-400" />
             &lt;50%
           </span>
-          <span className="ml-auto text-slate-600 hidden sm:inline">
-            Drag to reposition · Right-click for options
+          <span className={`ml-auto text-slate-600 ${isMobile ? "inline" : "hidden sm:inline"}`}>
+            {isMobile ? "Long-press module for options" : "Drag to reposition · Right-click for options"}
           </span>
         </div>
 

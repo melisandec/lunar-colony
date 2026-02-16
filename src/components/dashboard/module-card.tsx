@@ -1,11 +1,14 @@
 "use client";
 
+import { useRef, useCallback } from "react";
 import { type DashboardModule } from "@/stores/game-store";
 import { motion } from "framer-motion";
 import { useFeedback } from "@/hooks/use-feedback";
 import { useIsMobile } from "@/hooks/use-device";
 import { useAdaptiveAnimation } from "@/components/mobile";
 import Image from "next/image";
+
+const LONG_PRESS_MS = 500;
 
 // ---------------------------------------------------------------------------
 // Module visual constants
@@ -99,6 +102,7 @@ interface ModuleCardProps {
   selected?: boolean;
   onClick?: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
+  onLongPress?: (x: number, y: number) => void;
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
 }
@@ -108,12 +112,15 @@ export function ModuleCard({
   selected,
   onClick,
   onContextMenu,
+  onLongPress,
   draggable,
   onDragStart,
 }: ModuleCardProps) {
   const fb = useFeedback();
   const isMobile = useIsMobile();
   const { shouldAnimate, spring } = useAdaptiveAnimation();
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didLongPress = useRef(false);
   const icon = MODULE_ICONS[module.type] ?? "📦";
   const pixelArt = MODULE_IMAGES[module.type];
   const label =
@@ -123,7 +130,35 @@ export function ModuleCard({
   const tierText = TIER_TEXT_COLOR[module.tier] ?? "text-slate-500";
   const typeBg = MODULE_BG[module.type] ?? "from-slate-500/5 to-transparent";
 
-  const a11yLabel = `${label}, ${module.tier.toLowerCase()} tier, level ${module.level}, ${module.efficiency}% efficiency${module.isActive ? "" : ", inactive"}`;
+  const effectiveOutput =
+    (module.baseOutput + module.bonusOutput) * (module.efficiency / 100);
+
+  const a11yLabel = `${label}, ${module.tier.toLowerCase()} tier, level ${module.level}, ${effectiveOutput.toFixed(1)} per tick, ${module.efficiency}% efficiency (${effLabel(module.efficiency)})${module.isActive ? "" : ", inactive"}`;
+
+  const clearLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (!onLongPress || !isMobile) return;
+      didLongPress.current = false;
+      clearLongPress();
+      longPressTimer.current = setTimeout(() => {
+        longPressTimer.current = null;
+        didLongPress.current = true;
+        onLongPress(e.clientX, e.clientY);
+        fb.click();
+      }, LONG_PRESS_MS);
+    },
+    [onLongPress, isMobile, clearLongPress, fb],
+  );
+
+  const handlePointerUp = useCallback(() => clearLongPress(), [clearLongPress]);
+  const handlePointerCancel = useCallback(() => clearLongPress(), [clearLongPress]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" || e.key === " ") {
@@ -144,11 +179,20 @@ export function ModuleCard({
         aria-pressed={selected}
         aria-disabled={!module.isActive}
         onClick={() => {
+          clearLongPress();
+          if (didLongPress.current) {
+            didLongPress.current = false;
+            return;
+          }
           fb.click();
           onClick?.();
         }}
         onKeyDown={handleKeyDown}
         onContextMenu={onContextMenu}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
         onPointerEnter={() => !isMobile && fb.hover()}
         whileHover={shouldAnimate ? { scale: 1.04 } : undefined}
         whileTap={shouldAnimate ? { scale: 0.96 } : undefined}
@@ -182,12 +226,24 @@ export function ModuleCard({
           {label}
         </span>
 
+        {/* Output per tick */}
+        <span className="mt-0.5 text-[9px] font-medium tabular-nums text-emerald-400/90">
+          +{effectiveOutput.toFixed(1)}/tick
+        </span>
+
         {/* Tier badge */}
         <span
           className={`mt-0.5 text-[9px] font-bold uppercase tracking-widest ${tierText}`}
         >
           {module.tier}
         </span>
+
+        {/* Inactive label */}
+        {!module.isActive && (
+          <span className="absolute bottom-1 text-[8px] font-bold uppercase text-slate-500">
+            Inactive
+          </span>
+        )}
 
         {/* Efficiency indicator — ring style */}
         <div
@@ -236,21 +292,24 @@ export function EmptyGridCell({
     <div
       role="button"
       tabIndex={0}
-      aria-label="Empty slot — click to build a new module"
+      aria-label="Empty slot — tap to build a new module"
       onDrop={onDrop}
       onDragOver={onDragOver}
       onClick={onClick}
       onKeyDown={handleKeyDown}
-      className={`group flex aspect-square items-center justify-center rounded-2xl border border-dashed transition-all
+      className={`group flex aspect-square flex-col items-center justify-center gap-0.5 rounded-2xl border border-dashed transition-all
         focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950
         ${highlight ? "border-cyan-500/40 bg-cyan-500/5" : "border-slate-800/60 hover:border-slate-600 hover:bg-slate-900/40"}
         cursor-pointer`}
     >
       <span
-        className={`text-base transition-all ${highlight ? "text-cyan-500/60 scale-110" : "text-slate-700 group-hover:text-slate-500 group-hover:scale-110"}`}
+        className={`text-lg transition-all ${highlight ? "text-cyan-500/60 scale-110" : "text-slate-700 group-hover:text-slate-500 group-hover:scale-110"}`}
         aria-hidden="true"
       >
         +
+      </span>
+      <span className="text-[9px] font-medium text-slate-600 group-hover:text-slate-500">
+        Build
       </span>
     </div>
   );
