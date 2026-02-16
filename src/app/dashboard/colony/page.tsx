@@ -26,6 +26,7 @@ import {
 import { useUIStore } from "@/stores/ui-store";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard";
 import { ModuleCard, EmptyGridCell } from "@/components/dashboard/module-card";
+import { IsometricColony, IsometricColonyCompact } from "@/components/illustrations";
 import { GAME_CONSTANTS } from "@/lib/utils";
 import { EfficiencyGauge } from "@/components/visualizations/efficiency-gauge";
 import { FillMeter } from "@/components/visualizations/fill-meter";
@@ -270,9 +271,14 @@ export default function ColonyMapPage() {
       {/* Grid */}
       <div className="flex-1">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h1 className="text-xl font-bold">
-            <span className="mr-2">🗺️</span>Your Colony
-          </h1>
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:block shrink-0">
+              <IsometricColonyCompact variant="compact" animated={false} className="h-14 w-20" />
+            </div>
+            <h1 className="text-xl font-bold">
+              Your Colony
+            </h1>
+          </div>
           <div className="flex items-center gap-3">
             <button
               onClick={async () => {
@@ -306,22 +312,23 @@ export default function ColonyMapPage() {
 
         {/* Empty state CTA */}
         {hasNoModules && (
-          <div className="mb-6 rounded-2xl border-2 border-dashed border-cyan-500/30 bg-cyan-500/5 p-8 text-center">
-            <p className="mb-4 text-lg font-medium text-slate-200">
+          <div className="mb-6 flex flex-col items-center rounded-2xl border-2 border-dashed border-cyan-500/30 bg-cyan-500/5 p-8 text-center">
+            <IsometricColony variant="header" animated className="mb-4 max-w-[240px]" />
+            <p className="mb-2 text-lg font-medium text-slate-200">
               Build your first module to start earning $LUNAR!
             </p>
-            <p className="mb-6 text-sm text-slate-500">
+            <p className="mb-0 text-sm text-slate-500">
               Tap any empty slot below to open the build menu.
             </p>
-            <span className="text-4xl" aria-hidden="true">
-              🏗️
-            </span>
           </div>
         )}
 
         <div
           data-tutorial="grid"
-          className="grid grid-cols-4 gap-2 sm:grid-cols-4 md:grid-cols-5"
+          className="relative grid grid-cols-4 gap-2 rounded-2xl border border-slate-800/60 bg-slate-900/30 p-4 sm:grid-cols-4 md:grid-cols-5"
+          style={{
+            boxShadow: "inset 0 2px 12px rgba(0,0,0,0.2)",
+          }}
         >
           {grid.map((row, y) =>
             row.map((cell, x) =>

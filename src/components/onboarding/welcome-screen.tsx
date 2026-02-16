@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useOnboardingStore } from "@/stores/onboarding-store";
 import { useGameStore } from "@/stores/game-store";
+import { IsometricColonyCompact } from "@/components/illustrations";
 
 // ---------------------------------------------------------------------------
 // Phase 1: Welcome / Claim Screen (full-screen overlay)
@@ -113,15 +114,15 @@ function WelcomeCard({
       exit={{ opacity: 0, y: -10 }}
       className="rounded-3xl border border-cyan-500/20 bg-gradient-to-b from-slate-900 to-slate-950 p-8 shadow-2xl shadow-cyan-500/5"
     >
-      {/* Moon glow */}
+      {/* Isometric colony illustration */}
       <div className="mb-6 flex justify-center">
         <motion.div
-          animate={{ scale: [1, 1.05, 1] }}
+          animate={{ scale: [1, 1.03, 1] }}
           transition={{ duration: 4, repeat: Infinity }}
           className="relative"
         >
-          <div className="absolute inset-0 rounded-full bg-amber-500/20 blur-xl" />
-          <span className="relative text-7xl">🌔</span>
+          <div className="absolute inset-0 rounded-full bg-cyan-500/15 blur-2xl" />
+          <IsometricColonyCompact variant="card" animated className="relative" />
         </motion.div>
       </div>
 
@@ -177,9 +178,9 @@ function ClaimCard({
       exit={{ opacity: 0, y: -10 }}
       className="rounded-3xl border border-amber-500/20 bg-gradient-to-b from-slate-900 to-slate-950 p-8 shadow-2xl shadow-amber-500/5"
     >
-      <div className="mb-4 text-center">
-        <span className="text-4xl">🎁</span>
-        <h2 className="mt-2 text-xl font-bold text-white">
+      <div className="mb-4 flex flex-col items-center text-center">
+        <IsometricColonyCompact variant="compact" animated className="mb-2" />
+        <h2 className="text-xl font-bold text-white">
           YOUR STARTER COLONY
         </h2>
         <p className="mt-1 text-sm text-slate-400">

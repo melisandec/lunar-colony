@@ -1,6 +1,7 @@
 "use client";
 
 import { Providers } from "@/components/providers";
+import { IsometricColonyCompact } from "@/components/illustrations";
 import { useFarcaster } from "@/components/farcaster-provider";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
@@ -151,10 +152,8 @@ function DashboardShell({ children }: { children: ReactNode }) {
   if (!fid && farcasterLoading) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-slate-950 text-white">
-        <div className="flex flex-col items-center gap-3">
-          <span className="text-5xl" aria-hidden="true">
-            🌙
-          </span>
+        <div className="flex flex-col items-center gap-4">
+          <IsometricColonyCompact variant="compact" animated className="h-24 w-32" />
           <p className="animate-pulse text-sm text-slate-400">
             Connecting to Farcaster…
           </p>
@@ -238,11 +237,9 @@ function FidEntry() {
   return (
     <div className="flex min-h-dvh items-center justify-center bg-slate-950 text-white">
       <div className="w-full max-w-sm rounded-2xl border border-slate-800 bg-slate-900/50 p-8">
-        <div className="mb-6 text-center">
-          <span className="text-5xl" aria-hidden="true">
-            🌙
-          </span>
-          <h1 className="mt-3 text-2xl font-bold text-cyan-400">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <IsometricColonyCompact variant="card" animated={false} className="mb-3 h-20 w-28" />
+          <h1 className="text-2xl font-bold text-cyan-400">
             Lunar Colony Dashboard
           </h1>
           <p id="fid-help" className="mt-2 text-sm text-slate-400">

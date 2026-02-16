@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { GAME_CONSTANTS } from "@/lib/utils";
 import { useFarcaster } from "@/components/farcaster-provider";
 import { OfflineBanner, LowBatteryBanner } from "@/components/mobile";
+import { IsometricColony, IsometricColonyCompact } from "@/components/illustrations";
 
 /**
  * Landing page for Lunar Colony Tycoon.
@@ -26,12 +27,10 @@ export default function Home() {
   // instead of a flash of the landing page
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
-        <div className="text-center">
-          <div className="mb-4 text-6xl">🌙</div>
-          <div className="animate-pulse text-lg text-indigo-300">
-            Loading colony…
-          </div>
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
+        <IsometricColonyCompact variant="card" animated className="mb-4 h-24 w-36" />
+        <div className="animate-pulse text-lg text-indigo-300">
+          Loading colony…
         </div>
       </div>
     );
@@ -49,7 +48,9 @@ export default function Home() {
           paddingBottom: "var(--safe-bottom, 0px)",
         }}
       >
-        <div className="mb-6 text-8xl">🌙</div>
+        <div className="mb-6 flex w-full max-w-[360px] justify-center">
+          <IsometricColony variant="hero" animated className="w-full" />
+        </div>
         <h1 className="mb-4 text-4xl font-bold tracking-tight sm:text-5xl md:text-7xl">
           Lunar Colony
           <span className="block bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
