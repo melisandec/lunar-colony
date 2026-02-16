@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { neynar } from "@/lib/api-clients/neynar";
 import { GameState } from "@/lib/game-state";
 import { frameResponseToHtml, type Screen } from "@/lib/frame-response";
+import { GameMetrics } from "@/lib/metrics";
 
 /**
  * POST /api/game/[...action]
@@ -65,7 +66,10 @@ export async function POST(
       headers: { "Content-Type": "text/html" },
     });
   } catch (error) {
-    console.error("Game action error:", error);
+    GameMetrics.trackError(error, {
+      route: "/api/game/[...action]",
+      context: "game_action",
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

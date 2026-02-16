@@ -18,6 +18,14 @@ import {
   markAlertRead,
 } from "@/lib/game-engine";
 import prisma from "@/lib/database";
+import { GameMetrics } from "@/lib/metrics";
+import {
+  validateFid,
+  validateAllianceInput,
+  isValidModuleType,
+  isValidTier,
+  validateTradeInput,
+} from "@/lib/validation";
 import type { ModuleType } from "@/lib/utils";
 
 /**
@@ -30,8 +38,8 @@ export async function POST(
 ) {
   try {
     const { fid: fidStr } = await params;
-    const fid = parseInt(fidStr, 10);
-    if (isNaN(fid) || fid <= 0) {
+    const fid = validateFid(fidStr);
+    if (fid === null) {
       return NextResponse.json({ error: "Invalid FID" }, { status: 400 });
     }
 
@@ -47,16 +55,17 @@ export async function POST(
 
       case "build": {
         const { moduleType, tier } = body;
-        if (!moduleType) {
+        if (!moduleType || !isValidModuleType(moduleType)) {
           return NextResponse.json(
-            { error: "moduleType required" },
+            { error: "Valid moduleType required" },
             { status: 400 },
           );
         }
+        const validatedTier = isValidTier(tier) ? tier : "COMMON";
         const result = await buildModule(
           player.id,
           moduleType as ModuleType,
-          tier ?? "COMMON",
+          validatedTier,
         );
         return NextResponse.json(result);
       }
@@ -66,6 +75,22 @@ export async function POST(
         if (!moduleId || x === undefined || y === undefined) {
           return NextResponse.json(
             { error: "moduleId, x, y required" },
+            { status: 400 },
+          );
+        }
+
+        const coordX = Number(x);
+        const coordY = Number(y);
+        if (
+          !Number.isInteger(coordX) ||
+          !Number.isInteger(coordY) ||
+          coordX < 0 ||
+          coordX > 9 ||
+          coordY < 0 ||
+          coordY > 9
+        ) {
+          return NextResponse.json(
+            { error: "x and y must be integers 0-9" },
             { status: 400 },
           );
         }
@@ -82,10 +107,15 @@ export async function POST(
 
         await prisma.module.update({
           where: { id: moduleId },
-          data: { coordinates: { x, y } },
+          data: { coordinates: { x: coordX, y: coordY } },
         });
 
-        return NextResponse.json({ success: true, moduleId, x, y });
+        return NextResponse.json({
+          success: true,
+          moduleId,
+          x: coordX,
+          y: coordY,
+        });
       }
 
       case "upgrade": {
@@ -140,12 +170,33 @@ export async function POST(
       }
 
       case "trade": {
+        const { resource, side, quantity } = body;
+        if (!resource || !side || quantity === undefined) {
+          return NextResponse.json(
+            { error: "resource, side, quantity required" },
+            { status: 400 },
+          );
+        }
+
+        // Validate via trade input helper (accepts object format)
+        const inputStr = `${side} ${quantity} ${resource}`;
+        const validated = validateTradeInput(inputStr);
+        if (!validated) {
+          return NextResponse.json(
+            {
+              error:
+                "Invalid trade: use buy/sell, quantity 1-100000, valid resource",
+            },
+            { status: 400 },
+          );
+        }
+
         const marketEngine = (await import("@/lib/market-engine")).default;
         const result = await marketEngine.executeTrade(
           player.id,
-          body.resource,
-          body.side,
-          body.quantity,
+          validated.resource,
+          validated.side,
+          validated.quantity,
         );
         return NextResponse.json(result);
       }
@@ -216,14 +267,21 @@ export async function POST(
       }
 
       case "create-alliance": {
-        const { name, description } = body;
-        if (!name) {
+        const validated = validateAllianceInput(body);
+        if (!validated) {
           return NextResponse.json(
-            { error: "Alliance name required" },
+            {
+              error:
+                "Alliance name required: 2-30 chars, letters, numbers, spaces, hyphens",
+            },
             { status: 400 },
           );
         }
-        const createResult = await createAlliance(player.id, name, description);
+        const createResult = await createAlliance(
+          player.id,
+          validated.name,
+          validated.description,
+        );
         if (!createResult.success) {
           return NextResponse.json(
             { error: createResult.error },
@@ -309,7 +367,10 @@ export async function POST(
         );
     }
   } catch (error) {
-    console.error("Dashboard action error:", error);
+    GameMetrics.trackError(error, {
+      route: "/api/dashboard/[fid]/action",
+      context: "dashboard_action",
+    });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Internal error" },
       { status: 500 },

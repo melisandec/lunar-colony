@@ -267,9 +267,14 @@ async function creditProduction(
   if (result.totalLunar <= 0) return false;
 
   try {
-    await prisma.$transaction([
-      // 1. Insert the idempotency record (will throw on duplicate)
-      prisma.productionLog.create({
+    await prisma.$transaction(async (tx) => {
+      // 1. Fetch player for optimistic lock version
+      const player = await tx.player.findUniqueOrThrow({
+        where: { id: playerId },
+      });
+
+      // 2. Insert the idempotency record (will throw on duplicate)
+      await tx.productionLog.create({
         data: {
           playerId,
           date,
@@ -279,21 +284,24 @@ async function creditProduction(
           activeModules: result.activeModules,
           avgEfficiency: result.avgEfficiency,
         },
-      }),
+      });
 
-      // 2. Credit the player's balance
-      prisma.player.update({
-        where: { id: playerId },
+      // 3. Credit the player's balance (optimistic lock prevents race conditions)
+      await tx.player.update({
+        where: { id: playerId, version: player.version },
         data: {
           lunarBalance: { increment: result.totalLunar },
           totalEarnings: { increment: result.totalLunar },
           lastActive: new Date(),
           version: { increment: 1 },
         },
-      }),
+      });
 
-      // 3. Update LUNAR resource tracker
-      prisma.playerResource.upsert({
+      const balanceAfter =
+        Number(player.lunarBalance) + result.totalLunar;
+
+      // 4. Update LUNAR resource tracker
+      await tx.playerResource.upsert({
         where: { playerId_type: { playerId, type: "LUNAR" } },
         create: {
           playerId,
@@ -305,16 +313,16 @@ async function creditProduction(
           amount: { increment: result.totalLunar },
           totalMined: { increment: result.totalLunar },
         },
-      }),
+      });
 
-      // 4. Immutable transaction ledger entry
-      prisma.transaction.create({
+      // 5. Immutable transaction ledger entry (accurate balanceAfter for auditability)
+      await tx.transaction.create({
         data: {
           playerId,
           type: "PRODUCTION",
           resource: "LUNAR",
           amount: result.totalLunar,
-          balanceAfter: 0, // Will be stale — acceptable for ledger
+          balanceAfter,
           description: `Daily production: ${result.activeModules} modules, avg eff ${result.avgEfficiency}%`,
           metadata: {
             date: date.toISOString(),
@@ -324,19 +332,21 @@ async function creditProduction(
             })),
           },
         },
-      }),
+      });
 
-      // 5. Age all active modules
-      ...result.moduleResults.map((mr) =>
-        prisma.module.update({
-          where: { id: mr.moduleId },
-          data: {
-            lastCollectedAt: new Date(),
-            ageInCycles: { increment: 1 },
-          },
-        }),
-      ),
-    ]);
+      // 6. Age all active modules
+      await Promise.all(
+        result.moduleResults.map((mr) =>
+          tx.module.update({
+            where: { id: mr.moduleId },
+            data: {
+              lastCollectedAt: new Date(),
+              ageInCycles: { increment: 1 },
+            },
+          }),
+        ),
+      );
+    });
 
     return true;
   } catch (error) {

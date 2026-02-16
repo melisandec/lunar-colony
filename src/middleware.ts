@@ -1,17 +1,25 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import {
+  checkRateLimit,
+  getClientIdentifier,
+} from "@/lib/rate-limit";
 
 // Mobile UA patterns for server-side detection
 const MOBILE_UA = /iPhone|iPod|Android.*Mobile|Warpcast|Farcaster/i;
 
+/** Rate limit: 60 requests per minute per IP for API routes */
+const API_RATE_LIMIT = 60;
+const API_RATE_WINDOW_MS = 60_000;
+
 /**
  * Middleware for Farcaster Frame request validation, cron protection,
- * and mobile device detection.
+ * rate limiting, and mobile device detection.
  *
  * - Sets x-device-type header based on User-Agent
  * - Frame POST requests to /api/frames are validated for Farcaster signatures
  * - Cron endpoints require a secret token
- * - All other requests pass through
+ * - API routes are rate limited per IP
  */
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -21,6 +29,31 @@ export async function middleware(request: NextRequest) {
   // --- Add device detection header for downstream use ---
   const headers = new Headers(request.headers);
   headers.set("x-device-type", isMobile ? "mobile" : "desktop");
+
+  // --- Rate limit API routes (excludes cron) ---
+  const isApiRoute =
+    pathname.startsWith("/api/frames") ||
+    pathname.startsWith("/api/game") ||
+    pathname.startsWith("/api/market") ||
+    pathname.startsWith("/api/dashboard");
+
+  if (isApiRoute) {
+    const identifier = getClientIdentifier(request);
+    const key = `api:${identifier}`;
+    const result = checkRateLimit(key, API_RATE_LIMIT, API_RATE_WINDOW_MS);
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: "Too many requests. Try again in a moment." },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(Math.ceil(result.resetInMs / 1000)),
+          },
+        },
+      );
+    }
+  }
 
   // --- Protect cron endpoints ---
   if (pathname.startsWith("/api/cron")) {
@@ -73,5 +106,13 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/api/frames/:path*", "/api/cron/:path*", "/dashboard/:path*", "/"],
+  matcher: [
+    "/api/frames/:path*",
+    "/api/cron/:path*",
+    "/api/game/:path*",
+    "/api/market/:path*",
+    "/api/dashboard/:path*",
+    "/dashboard/:path*",
+    "/",
+  ],
 };

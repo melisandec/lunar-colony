@@ -3,7 +3,9 @@ import { neynar } from "@/lib/api-clients/neynar";
 import { GameState } from "@/lib/game-state";
 import { frameResponseToHtml } from "@/lib/frame-response";
 import marketEngine from "@/lib/market-engine";
+import { validateTradeInput } from "@/lib/validation";
 import type { ResourceType } from "@/lib/utils";
+import { GameMetrics } from "@/lib/metrics";
 
 /**
  * POST /api/market/trade
@@ -71,8 +73,8 @@ export async function POST(req: NextRequest) {
     } else if (buttonIndex === 2) {
       side = "sell";
     } else if (buttonIndex === 3 && inputText) {
-      // Parse custom trade from input text
-      const parsed = parseTradeInput(inputText);
+      // Parse and validate custom trade from input text
+      const parsed = validateTradeInput(inputText);
       if (!parsed) {
         const errorResponse = await gameState.handleAction({
           fid,
@@ -112,48 +114,13 @@ export async function POST(req: NextRequest) {
       headers: { "Content-Type": "text/html" },
     });
   } catch (error) {
-    console.error("Trade error:", error);
+    GameMetrics.trackError(error, {
+      route: "/api/market/trade",
+      context: "trade_execution",
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
     );
   }
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Valid resource names for trade input parsing */
-const RESOURCE_ALIASES: Record<string, ResourceType> = {
-  regolith: "REGOLITH",
-  reg: "REGOLITH",
-  water: "WATER_ICE",
-  water_ice: "WATER_ICE",
-  ice: "WATER_ICE",
-  helium: "HELIUM3",
-  helium3: "HELIUM3",
-  he3: "HELIUM3",
-  rare: "RARE_EARTH",
-  rare_earth: "RARE_EARTH",
-  rareearth: "RARE_EARTH",
-};
-
-function parseTradeInput(
-  input: string,
-): { side: "buy" | "sell"; resource: ResourceType; quantity: number } | null {
-  const parts = input.trim().toLowerCase().split(/\s+/);
-  if (parts.length < 3) return null;
-
-  const sideStr = parts[0];
-  if (sideStr !== "buy" && sideStr !== "sell") return null;
-
-  const qty = parseInt(parts[1] ?? "", 10);
-  if (isNaN(qty) || qty <= 0) return null;
-
-  const resourceStr = parts.slice(2).join("_");
-  const resource = RESOURCE_ALIASES[resourceStr];
-  if (!resource) return null;
-
-  return { side: sideStr, resource, quantity: qty };
 }

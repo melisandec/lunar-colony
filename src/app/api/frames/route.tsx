@@ -6,6 +6,7 @@ import {
   frameResponseToHtml,
   type Screen,
 } from "@/lib/frame-response";
+import { GameMetrics } from "@/lib/metrics";
 import { absoluteUrl } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -174,7 +175,10 @@ export async function POST(req: NextRequest) {
       headers: { "Content-Type": "text/html" },
     });
   } catch (error) {
-    console.error("Frame POST error:", error);
+    GameMetrics.trackError(error, {
+      route: "/api/frames",
+      context: "frame_post",
+    });
     return friendlyErrorFrame("Something went wrong — tap to retry");
   }
 }
