@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { GAME_CONSTANTS } from "@/lib/utils";
+import { GAME_CONSTANTS, DEMO_FID } from "@/lib/utils";
 import { useFarcaster } from "@/components/farcaster-provider";
 import { OfflineBanner, LowBatteryBanner } from "@/components/mobile";
 import { IsometricColony, IsometricColonyCompact } from "@/components/illustrations";
@@ -75,11 +75,11 @@ export default function Home() {
             🚀 Play on Farcaster
           </a>
           <Link
-            href="/1"
+            href={`/dashboard?fid=${DEMO_FID}`}
             className="rounded-full border border-indigo-600 px-8 py-4 text-lg font-semibold transition active:scale-95 hover:bg-indigo-900/50"
             style={{ minWidth: 60, minHeight: 60 }}
           >
-            👀 View Demo Colony
+            👀 Play Demo Colony
           </Link>
         </div>
 

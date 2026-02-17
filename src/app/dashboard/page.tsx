@@ -3,12 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-/** Dashboard root — redirect to Colony Map (the default view). */
+/** Dashboard root — redirect to Colony Map (the default view). Preserves ?fid= for demo flow. */
 export default function DashboardPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/dashboard/colony");
+    const fidParam = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("fid") : null;
+    const path = fidParam ? `/dashboard/colony?fid=${fidParam}` : "/dashboard/colony";
+    router.replace(path);
   }, [router]);
 
   return (

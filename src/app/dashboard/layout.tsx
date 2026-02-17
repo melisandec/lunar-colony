@@ -2,6 +2,7 @@
 
 import { Providers } from "@/components/providers";
 import { IsometricColonyCompact } from "@/components/illustrations";
+import { DEMO_FID } from "@/lib/utils";
 import { useFarcaster } from "@/components/farcaster-provider";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
@@ -138,14 +139,15 @@ function DashboardShell({ children }: { children: ReactNode }) {
     }
   }, [fid, farcasterFid, setFid]);
 
-  // Pick up ?fid= from URL and persist
+  // Pick up ?fid= from URL and persist (guard to prevent loop: only set when value would change)
   useEffect(() => {
     const urlFid = searchParams.get("fid");
-    if (urlFid) {
-      const n = parseInt(urlFid, 10);
-      if (!isNaN(n) && n > 0) setFid(n);
-    }
-  }, [searchParams, setFid]);
+    if (!urlFid) return;
+    const n = parseInt(urlFid, 10);
+    if (isNaN(n) || n <= 0) return;
+    if (n === fid) return;
+    setFid(n);
+  }, [searchParams, setFid, fid]);
 
   // While Farcaster SDK is still detecting, show a loading state
   // instead of flashing the FID entry form
@@ -261,12 +263,21 @@ function FidEntry() {
             aria-describedby="fid-help fid-hint"
             className="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 text-center text-lg font-mono text-white placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
           />
-          <button
-            type="submit"
-            className="rounded-lg bg-cyan-600 px-6 py-3 font-semibold text-white transition hover:bg-cyan-500 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
-          >
-            Enter Colony →
-          </button>
+          <div className="flex flex-col gap-2">
+            <button
+              type="submit"
+              className="rounded-lg bg-cyan-600 px-6 py-3 font-semibold text-white transition hover:bg-cyan-500 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+            >
+              Enter Colony →
+            </button>
+            <button
+              type="button"
+              onClick={() => setFid(DEMO_FID)}
+              className="rounded-lg border border-slate-600 px-6 py-2.5 text-sm font-medium text-slate-400 transition hover:border-slate-500 hover:bg-slate-800/50 hover:text-slate-300"
+            >
+              Use Demo (FID {DEMO_FID}) for testing
+            </button>
+          </div>
         </form>
         <p id="fid-hint" className="mt-4 text-center text-xs text-slate-600">
           Find your FID on your Warpcast profile

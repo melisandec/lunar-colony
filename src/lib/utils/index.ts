@@ -116,6 +116,9 @@ export const GAME_CONSTANTS = {
   ] as const,
 } as const;
 
+/** FID used for demo/testing when not in Farcaster. Enables /dashboard?fid=1 playable flow. */
+export const DEMO_FID = 1;
+
 export type ModuleType = (typeof GAME_CONSTANTS.MODULE_TYPES)[number];
 export type Tier = (typeof GAME_CONSTANTS.TIERS)[number];
 export type ResourceType = (typeof GAME_CONSTANTS.RESOURCE_TYPES)[number];

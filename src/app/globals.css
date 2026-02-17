@@ -326,7 +326,10 @@ body {
   border-radius: inherit;
 }
 
-[data-reduced-motion="true"] .lunar-surface::after,
+[data-reduced-motion="true"] .lunar-surface::after {
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lunar-surface::after {
     animation: none;
